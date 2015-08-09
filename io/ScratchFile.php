@@ -16,6 +16,13 @@
  * limitations under the License.
  */
  require_once('MemoryUsageSetting.php');
+ require_once('ScratchFileBuffer.php');
+ /****************************************************************************
+ * Note for future development (9 Aug 2015):
+ * While Java may be more efficient keeping a table of free pages, and pre-
+ * allocating the memory space for those pages; PHP would be better off
+ * taking advantage of isset and unset.
+ *****************************************************************************/
 /**
  * Implements a memory page handling mechanism as base for creating (multiple)
  * {@link RandomAccess} buffers each having its set of pages (implemented by
@@ -144,7 +151,7 @@ class ScratchFile {
 				$this->file = tempnam($this->scratchFileDirectory,'PDFBox');
 				try {
 					$this->raf = fopen($this->file,'w+');
-				} catch ($e) {
+				} catch (Exception $e) {
 					$this->raf = tmpfile();
 					$meta = stream_get_meta_data($this->raf);
 					$this->file = $meta['uri'];
@@ -209,10 +216,115 @@ class ScratchFile {
 			$this->checkClosed();
 			throw new Exception("Missing scratch file to read page with index $pageIdx from.");
 		}
-		$page = array();
+		$page = '';
 		fseek($this->raf,($pageIdx - $this->inMemoryMaxPageCount) * PAGE_SIZE);
 		$page = fread($this->raf,PAGE_SIZE);		
 		return $page;
+	}
+    /**
+     * Writes updated page. Page is either kept in-memory if pageIdx &lt; {@link #inMemoryMaxPageCount}
+     * or is written to scratch file.
+     * 
+     * <p>Provided page byte array must not be re-used for other pages since we
+     * store it as is in case of in-memory handling.</p>
+     * 
+     * @param pageIdx index of page to write
+     * @param page page to write (length has to be {@value #PAGE_SIZE})
+     * 
+     * @throws IOException in case page index is out of range or page has wrong length
+     *                     or writing to file failed
+     */
+	private function writePage($pageIdx,$page) {
+		if (!is_integer($pageIdx)) return;
+		if (!is_string($page)) return;
+        if (($pageIdx<0) || ($pageIdx>=$this->pageCount)) {
+            $this->checkClosed();
+            throw new Exception("Page index out of range: $pageIdx. Max value: ".($this->pageCount - 1) );
+        }
+        if (strlen($page) != PAGE_SIZE) {
+            throw new Exception("Wrong page size to write: ".strlen($page).". Expected: ".PAGE_SIZE );
+        }
+        if ($pageIdx < $this->inMemoryMaxPageCount) {
+            $this->inMemoryPages[$pageIdx] = $page;
+            // in case we were closed in between throw exception
+            $this->checkClosed();
+        } else {
+			$this->checkClosed();
+			fseek($this->raf,($pageIdx - $this->inMemoryMaxPageCount) * PAGE_SIZE);
+			fwrite($this->raf,$page);
+		}
+	}
+    /**
+     * Checks if this page handler has already been closed. If so,
+     * an {@link IOException} is thrown.
+     * 
+     * @throws IOException If {@link #close()} has already been called.
+     */
+	private function checkClosed() {
+		if ($this->isClosed) {
+            throw new Exception("Scratch file already closed");
+		}
+	}
+    /**
+     * Creates a new buffer using this page handler, or
+     * Creates a new buffer using this page handler and initializes it with the
+     * data read from provided input stream (input stream is copied to buffer).
+     * The buffer data pointer is reset to point to first byte.
+	 *
+	 * @param input (Optional), an existing input stream
+     * 
+     * @return A new buffer, optionally containing data read from input stream.
+     * 
+     * @throws IOException If an error occurred.
+     */
+	public function createBuffer($input=null) {
+		if (is_null($input))
+			return new ScratchFileBuffer($this);
+		$buf = new ScratchFileBuffer($this);
+		while (!feof($input)) {
+			$buf->write(fread($input,8192));
+		}
+		$buf->seek(0);
+		return $buf;
+	}
+    /**
+     * Allows a buffer which is cleared/closed to release its pages to be re-used.
+     * 
+     * @param pageIndexes pages indexes of pages to release
+     * @param count number of page indexes contained in provided array 
+     */
+	private function markPagesAsFree($pageIndexes,$off,$count) {
+		if (!is_array($pageIndexes) || !is_integer($off) || !is_integer($count)) return;
+		for ($aIdx = $off; $aIdx < $count; $aIdx++) {
+			$pageIdx = $pageIndexes[$aIdx];
+			if (($pageIdx>=0) && ($pageIdx<$this->pageCount) && (!$this->freePages[$pageIdx]))	{
+				$this->freePages[$pageIdx]=true;
+				if ($pageIdx < $this->inMemoryMaxPageCount)	{
+					$this->inMemoryPages[$pageIdx] = '';
+				}
+			}
+		}
+	}
+    /**
+     * Closes and deletes the temporary file. No further interaction with
+     * the scratch file or associated buffers can happen after this method is called.
+     * It also releases in-memory pages.
+     * 
+     * @throws IOException If there was a problem closing or deleting the temporary file.
+     */
+	public function close() {
+		if ($this->isClosed) return;
+		$this->isClosed = true;
+		if (!is_null($this->raf)) {
+			fclose($this->raf);
+			$this->raf = null;
+		}
+		if (!is_null($this->file)) {
+			unlink($this->file);
+			$this->file = null;
+		}
+		$this->freePages = array();
+		$this->pageCount = 0;
 	}
 }
 ?>
