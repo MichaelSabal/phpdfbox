@@ -51,7 +51,7 @@ class ScratchFileBuffer {
      */
     private $currentPageContentChanged = false;	// boolean
     /** contains ordered list of pages with the index the page is known by page handler ({@link ScratchFile}) */
-    private $pageIndexes = array_fill(0,16,0);		// int[16]
+    private $pageIndexes;		// int[16]
     /** number of pages held by this buffer */
     private $pageCount = 0;		// int
     /**
@@ -62,6 +62,7 @@ class ScratchFileBuffer {
      * @throws IOException If getting first page failed.
      */
     public function __construct($pageHandler) {
+		$this->pageIndexes = array_fill(0,16,0);
 		if (!($pageHandler instanceof ScratchFile)) return;
         $pageHandler->checkClosed();
         $this->pageHandler = $pageHandler;
@@ -272,7 +273,52 @@ class ScratchFileBuffer {
         $this->checkClosed();
         return min($this->size - ($this->currentPageOffset + $this->positionInPage), PHP_INT_MAX);
     }
-	// read
-	// close
+    public function read($b=null, $off=0, $len=0) {
+        $this->checkClosed();
+        if ($this->currentPageOffset + $this->positionInPage >= $this->size) {
+            return -1;
+        }
+		if (is_null($b)) {
+            if (!$this->ensureAvailableBytesInPage(false))  {
+                throw new Exception("Unexpectedly no bytes available for read in buffer.");
+            }
+			$x = $this->currentPage[$this->positionInPage];
+			$this->positionInPage++;
+			return $x & 0xff;
+		}
+		if (!is_string($b)) return -1;
+		if ($len===0) $len=strlen($b);
+        $remain = min($len, $this->size - ($this->currentPageOffset + $this->positionInPage));
+        $totalBytesRead = 0;
+        $bOff           = $off;
+        while ($remain > 0) {
+            if (!$this->ensureAvailableBytesInPage(false))  {
+                // should not happen, we checked it before
+                throw new Exception("Unexpectedly no bytes available for read in buffer.");
+            }
+            $readBytes = min($remain, $this->pageSize - $this->positionInPage);
+			if ($bOff>0) 
+				$b = substr($b,0,$bOff).substr($this->currentPage,$this->positionInPage,$readBytes);
+			else
+				$b = substr($this->currentPage,$this->positionInPage,$readBytes);
+            $this->positionInPage += $readBytes;
+            $totalBytesRead += $readBytes;
+            $bOff += $readBytes;
+            $remain -= $readBytes;
+        }
+        return $totalBytesRead;
+    }
+    public function close() {
+        if ($this->pageHandler != null) {
+            $this->pageHandler->markPagesAsFree($this->pageIndexes, 0, $this->pageCount);
+            $this->pageHandler = null;
+            $this->pageIndexes = null;
+            $this->currentPage = null;
+            $this->currentPageOffset = 0;
+            $this->currentPagePositionInPageIndexes = -1;
+            $this->positionInPage = 0;
+            $this->size = 0;
+        }
+    }
 }
 ?>
