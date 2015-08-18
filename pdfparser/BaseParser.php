@@ -392,66 +392,120 @@ abstract class BaseParser {
                     case '7':
                     {
                         $octal = new StringBuffer();
-                        $octal->append( next );
-                        c = seqSource.read();
-                        char digit = (char)c;
-                        if( digit >= '0' && digit <= '7' )
-                        {
-                            octal.append( digit );
-                            c = seqSource.read();
-                            digit = (char)c;
-                            if( digit >= '0' && digit <= '7' )
-                            {
-                                octal.append( digit );
+                        $octal->append( $next );
+                        $c = $this->seqSource->read();
+                        $digit = asc($c);
+                        if( $digit >= '0' && $digit <= '7' ) {
+                            $octal->append( $digit );
+                            $c = $this->seqSource->read();
+                            $digit = asc($c);
+                            if( $digit >= '0' && $digit <= '7' ) {
+                                $octal->append( $digit );
+                            } else {
+                                $nextc = $c;
                             }
-                            else
-                            {
-                                nextc = c;
-                            }
-                        }
-                        else
-                        {
-                            nextc = c;
+                        } else {
+                            $nextc = $c;
                         }
     
-                        int character = 0;
-                        try
-                        {
-                            character = Integer.parseInt( octal.toString(), 8 );
+                        $character = 0;
+                        try {
+                            $character = octdec($octal);
+                        } catch( Exception $e ) {
+                            throw new Exception( "Error: Expected octal character, actual='".$octal."'" );
                         }
-                        catch( NumberFormatException e )
-                        {
-                            throw new IOException( "Error: Expected octal character, actual='" + octal + "'", e );
-                        }
-                        $out->write(character);
+                        $out->write($character);
                         break;
                     }
                     default:
                     {
                         // dropping the backslash
                         // see 7.3.4.2 Literal Strings for further information
-                        $out->write(next);
+                        $out->write($next);
                     }
                 }
             }
             else
             {
-                $out->write(ch);
+                $out->write($ch);
             }
-            if (nextc != -2)
+            if ($nextc != -2)
             {
-                c = nextc;
+                $c = $nextc;
             }
             else
             {
-                c = seqSource.read();
+                $c = $this->seqSource->read();
             }
         }
-        if (c != -1)
+        if ($c != -1)
         {
-            seqSource.unread(c);
+            $this->seqSource->unread($c);
         }
-        return new COSString(out.toByteArray());
+        return new COSString($out->toByteArray());
+    }
+    /**
+     * This will parse a PDF HEX string with fail fast semantic
+     * meaning that we stop if a not allowed character is found.
+     * This is necessary in order to detect malformed input and
+     * be able to skip to next object start.
+     *
+     * We assume starting '&lt;' was already read.
+     * 
+     * @return The parsed PDF string.
+     *
+     * @throws IOException If there is an error reading from the stream.
+     */
+    private function parseCOSHexString() {
+        $sBuf = new StringBuilder();
+        while( true ) {
+            $c = asc($this->seqSource->read());
+            if ( $this->isHexDigit($c) ) {
+                $sBuf->append( $c );
+            }
+            else if ( c == '>' )
+            {
+                break;
+            }
+            else if ( $c < 0 ) 
+            {
+                throw new Exception( "Missing closing bracket for hex string. Reached EOS." );
+            }
+            else if ( ( $c == ' ' ) || ( $c == '\n' ) ||
+                    ( $c == '\t' ) || ( $c == '\r' ) ||
+                    ( $c == '\b' ) || ( $c == '\f' ) )
+            {
+                continue;
+            }
+            else
+            {
+                // if invalid chars was found: discard last
+                // hex character if it is not part of a pair
+                if ($sBuf->length()%2!=0)
+                {
+                    $sBuf->deleteCharAt($sBuf->length()-1);
+                }
+                
+                // read till the closing bracket was found
+                do 
+                {
+                    $c = asc($this->seqSource->read());
+                } 
+                while ( $c != '>' && $c >= 0 );
+                
+                // might have reached EOF while looking for the closing bracket
+                // this can happen for malformed PDFs only. Make sure that there is
+                // no endless loop.
+                if ( $c < 0 ) 
+                {
+                    throw new Exception( "Missing closing bracket for hex string. Reached EOS." );
+                }
+                
+                // exit loop
+                break;
+            }
+        }
+        return COSString::parseHex($sBuf->toString());
     }
 	
 }
