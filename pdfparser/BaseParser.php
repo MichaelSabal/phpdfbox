@@ -457,56 +457,307 @@ abstract class BaseParser {
      * @throws IOException If there is an error reading from the stream.
      */
     private function parseCOSHexString() {
-        $sBuf = new StringBuilder();
+        $sBuf = "";
         while( true ) {
-            $c = asc($this->seqSource->read());
+            $c = $this->seqSource->read();
+			if ($c < 0) {
+				throw new Exception( "Missing closing bracket for hex string. Reached EOS." );
+				return null;
+			}
+			$c = asc($c);
             if ( $this->isHexDigit($c) ) {
-                $sBuf->append( $c );
-            }
-            else if ( c == '>' )
-            {
+                $sBuf.=$c;
+            } elseif ( c == '>' ) {
                 break;
-            }
-            else if ( $c < 0 ) 
-            {
-                throw new Exception( "Missing closing bracket for hex string. Reached EOS." );
-            }
-            else if ( ( $c == ' ' ) || ( $c == '\n' ) ||
+            } elseif ( ( $c == ' ' ) || ( $c == '\n' ) ||
                     ( $c == '\t' ) || ( $c == '\r' ) ||
-                    ( $c == '\b' ) || ( $c == '\f' ) )
-            {
+                    ( $c == '\b' ) || ( $c == '\f' ) ) {
                 continue;
-            }
-            else
-            {
+            } else {
                 // if invalid chars was found: discard last
                 // hex character if it is not part of a pair
-                if ($sBuf->length()%2!=0)
-                {
-                    $sBuf->deleteCharAt($sBuf->length()-1);
-                }
-                
+                if (strlen($sBuf)%2!=0) {
+					$sBuf = substr($sBuf,0,-1);
+                }               
                 // read till the closing bracket was found
-                do 
-                {
-                    $c = asc($this->seqSource->read());
-                } 
-                while ( $c != '>' && $c >= 0 );
-                
+                do {
+                    $c = $this->seqSource->read();
+                } while ( $c != ord('>') && $c >= 0 );
                 // might have reached EOF while looking for the closing bracket
                 // this can happen for malformed PDFs only. Make sure that there is
                 // no endless loop.
-                if ( $c < 0 ) 
-                {
+                if ( $c < 0 ) {
                     throw new Exception( "Missing closing bracket for hex string. Reached EOS." );
                 }
-                
                 // exit loop
                 break;
             }
         }
-        return COSString::parseHex($sBuf->toString());
+        return COSString::parseHex($sBuf);
     }
-	
+    /**
+     * This will parse a PDF array object.
+     *
+     * @return The parsed PDF array.
+     *
+     * @throws IOException If there is an error parsing the stream.
+     */
+    protected function parseCOSArray() {
+        $this->readExpectedChar('[');
+        $po = new COSArray();
+        $this->skipSpaces();
+        $i=-1;
+        while( (($i = $this->seqSource->peek()) > 0) && (asc($i) != ']') ) {
+            $pbo = $this->parseDirObject();
+            if( $pbo instanceof COSObject ) {
+                // We have to check if the expected values are there or not PDFBOX-385
+                if ($po->get($po->size()-1) instanceof COSInteger) {
+                    $genNumber = $po->remove( $po->size() -1 );
+                    if ($po->get($po->size()-1) instanceof COSInteger) {
+                        $number = $po->remove( $po->size() -1 );
+                        $key = new COSObjectKey($number->longValue(), $genNumber->intValue());
+                        $pbo = $this->getObjectFromPool($key);
+                    } else {
+                        // the object reference is somehow wrong
+                        $pbo = null;
+                    }
+                } else {
+                    $pbo = null;
+                }
+            }
+            if( $pbo != null ) {
+                $po->add( $pbo );
+            } else {
+                //it could be a bad object in the array which is just skipped
+                print("Corrupt object reference at offset ".$this->seqSource->getPosition());
+                // This could also be an "endobj" or "endstream" which means we can assume that
+                // the array has ended.
+                $isThisTheEnd = $this->readString();
+                $this->seqSource->unread($isThisTheEnd);
+                if(ENDOBJ_STRING==$isThisTheEnd || ENDSTREAM_STRING==$isThisTheEnd) {
+                    return $po;
+                }
+            }
+            $this->skipSpaces();
+        }
+        // read ']'
+        $this->seqSource->read(); 
+        $this->skipSpaces();
+        return $po;
+    }
+    /**
+     * Determine if a character terminates a PDF name.
+     *
+     * @param ch The character
+     * @return true if the character terminates a PDF name, otherwise false.
+     */
+    protected function isEndOfName($ch) {
+		if (is_integer($ch))
+        return ch == ASCII_SPACE || ch == ASCII_CR || ch == ASCII_LF || ch == 9 || ch == 62 ||
+               ch == 60 || ch == 91 || ch ==47 || ch ==93 || ch ==41 || ch ==40;
+		if (is_string($ch))
+		return ch == ' ' || ch == "\r" || ch == "\n" || ch == "\t" || ch == '>' ||
+               ch == '<' || ch == '[' || ch =='/' || ch ==']' || ch ==')' || ch =='(';
+		return false;
+    }
+    /**
+     * This will parse a PDF name from the stream.
+     *
+     * @return The parsed PDF name.
+     * @throws IOException If there is an error reading from the stream.
+     */
+    protected function parseCOSName() {
+        $this->readExpectedChar('/');
+        $buffer = new ByteArrayOutputStream();
+        $c = $this->seqSource->read();
+        while ($c != -1) {
+            $ch = asc($c);
+            if (ch == '#') {
+                $ch1 = asc($this->seqSource->read());
+                $ch2 = asc($this->seqSource->read());
+                // Prior to PDF v1.2, the # was not a special character.  Also,
+                // it has been observed that various PDF tools do not follow the
+                // spec with respect to the # escape, even though they report
+                // PDF versions of 1.2 or later.  The solution here is that we
+                // interpret the # as an escape only when it is followed by two
+                // valid hex digits.
+                if ($this->isHexDigit($ch1) && $this->isHexDigit($ch2)) {
+                    $hex = $ch1.$ch2;
+                    $buffer->write(hexdec($hex));
+                    $c = $this->seqSource->read();
+                } else {
+                    $this->seqSource->unread($ch2);
+                    $c = $ch1;
+                    $buffer->write($ch);
+                }
+            } elseif ($this->isEndOfName($ch)) {
+                break;
+            } else {
+                $buffer->write($ch);
+                $c = $this->seqSource->read();
+            }
+        }
+        if ($c != -1) {
+            $seqSource->unread($c);
+        }
+        $string = $buffer->toByteArray()
+        return COSName::getPDFName($string);
+    }
+    /**
+     * This will parse a boolean object from the stream.
+     *
+     * @return The parsed boolean object.
+     *
+     * @throws IOException If an IO error occurs during parsing.
+     */
+    protected function parseBoolean() {
+        $retval = null;
+        $c = asc($this->seqSource->peek());
+        if( $c == 't' )  {
+            $trueString = $this->seqSource->readFully( 4 );
+            if( $trueString!=TRUE ) {
+                throw new Exception( "Error parsing boolean: expected='true' actual='".$trueString. 
+                        "' at offset ".$this->seqSource->getPosition());
+            } else {
+                $retval = COSBoolean::TRUE;
+            }
+        } else if( $c == 'f' ) {
+            $falseString = $this->seqSource->readFully( 5 );
+            if( $falseString!=FALSE  ) {
+                throw new Exception( "Error parsing boolean: expected='true' actual='".$falseString.
+                        "' at offset ".$this->seqSource->getPosition());
+            } else {
+                $retval = COSBoolean::FALSE;
+            }
+        } else {
+            throw new Exception( "Error parsing boolean expected='t or f' actual='".$c.
+                    "' at offset ".$this->seqSource->getPosition());
+        }
+        return $retval;
+    }
+    /**
+     * This will parse a directory object from the stream.
+     *
+     * @return The parsed object.
+     *
+     * @throws IOException If there is an error during parsing.
+     */
+    protected function parseDirObject() {
+        $retval = null;
+        $this->skipSpaces();
+        $nextByte = $this->seqSource->peek();
+        $c = asc($nextByte);
+        switch($c) {
+        case '<':
+            // pull off first left bracket
+            int leftBracket = seqSource.read();
+            // check for second left bracket
+            c = (char) seqSource.peek();
+            seqSource.unread(leftBracket);
+            if(c == '<')
+            {
+
+                retval = parseCOSDictionary();
+                skipSpaces();
+            }
+            else
+            {
+                retval = parseCOSString();
+            }
+            break;
+        case '[':
+            // array
+            retval = parseCOSArray();
+            break;
+        case '(':
+            retval = parseCOSString();
+            break;
+        case '/':   
+            // name
+            retval = parseCOSName();
+            break;
+        case 'n':   
+            // null
+            readExpectedString(NULL);
+            retval = COSNull.NULL;
+            break;
+        case 't':
+            String trueString = new String( seqSource.readFully(4), ISO_8859_1 );
+            if( trueString.equals( TRUE ) )
+            {
+                retval = COSBoolean.TRUE;
+            }
+            else
+            {
+                throw new IOException( "expected true actual='" + trueString + "' " + seqSource + 
+                        "' at offset " + seqSource.getPosition());
+            }
+            break;
+        case 'f':
+            String falseString = new String( seqSource.readFully(5), ISO_8859_1 );
+            if( falseString.equals( FALSE ) )
+            {
+                retval = COSBoolean.FALSE;
+            }
+            else
+            {
+                throw new IOException( "expected false actual='" + falseString + "' " + seqSource + 
+                        "' at offset " + seqSource.getPosition());
+            }
+            break;
+        case 'R':
+            seqSource.read();
+            retval = new COSObject(null);
+            break;
+        case (char)-1:
+            return null;
+        default:
+            if( Character.isDigit(c) || c == '-' || c == '+' || c == '.')
+            {
+                StringBuilder buf = new StringBuilder();
+                int ic = seqSource.read();
+                c = (char)ic;
+                while( Character.isDigit( c )||
+                        c == '-' ||
+                        c == '+' ||
+                        c == '.' ||
+                        c == 'E' ||
+                        c == 'e' )
+                {
+                    buf.append( c );
+                    ic = seqSource.read();
+                    c = (char)ic;
+                }
+                if( ic != -1 )
+                {
+                    seqSource.unread(ic);
+                }
+                retval = COSNumber.get( buf.toString() );
+            }
+            else
+            {
+                //This is not suppose to happen, but we will allow for it
+                //so we are more compatible with POS writers that don't
+                //follow the spec
+                String badString = readString();
+                if( badString == null || badString.length() == 0 )
+                {
+                    int peek = seqSource.peek();
+                    // we can end up in an infinite loop otherwise
+                    throw new IOException( "Unknown dir object c='" + c +
+                            "' cInt=" + (int)c + " peek='" + (char)peek 
+                            + "' peekInt=" + peek + " " + seqSource.getPosition() );
+                }
+
+                // if it's an endstream/endobj, we want to put it back so the caller will see it
+                if(ENDOBJ_STRING.equals(badString) || ENDSTREAM_STRING.equals(badString))
+                {
+                    seqSource.unread(badString.getBytes(ISO_8859_1));
+                }
+            }
+        }
+        return $retval;
+    }
+
 }
 ?>
