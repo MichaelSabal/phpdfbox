@@ -273,7 +273,7 @@ class ScratchFileBuffer {
         $this->checkClosed();
         return min($this->size - ($this->currentPageOffset + $this->positionInPage), PHP_INT_MAX);
     }
-    public function read($b=null, $off=0, $len=0) {
+    public function read(&$b=null, $off=0, $len=0) {
         $this->checkClosed();
         if ($this->currentPageOffset + $this->positionInPage >= $this->size) {
             return -1;

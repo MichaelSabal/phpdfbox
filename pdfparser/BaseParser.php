@@ -34,69 +34,69 @@ require_once('../cos/COSString.php');
  * @author Ben Litchfield
  */
 abstract class BaseParser {
-    private static const OBJECT_NUMBER_THRESHOLD = 10000000000;
+    const OBJECT_NUMBER_THRESHOLD = 10000000000;
 
-    private static const GENERATION_NUMBER_THRESHOLD = 65535;
+    const GENERATION_NUMBER_THRESHOLD = 65535;
 
-    protected static const E = 101;
-    protected static const N = 110;
-    protected static const D = 100;
+    const E = 101;
+    const N = 110;
+    const D = 100;
 
-    protected static const S = 115;
-    protected static const T = 116;
-    protected static const R = 114;
-    protected static const A = 97;
-    protected static const M = 109;
+    const S = 115;
+    const T = 116;
+    const R = 114;
+    const A = 97;
+    const M = 109;
 
-    protected static const O = 111;
-    protected static const B = 98;
-    protected static const J = 106;
+    const O = 111;
+    const B = 98;
+    const J = 106;
 
     /**
      * This is a string constant that will be used for comparisons.
      */
-    public static const DEF = "def";
+    const DEF = "def";
     /**
      * This is a string constant that will be used for comparisons.
      */
-    protected static const ENDOBJ_STRING = "endobj";
+    const ENDOBJ_STRING = "endobj";
     /**
      * This is a string constant that will be used for comparisons.
      */
-    protected static const ENDSTREAM_STRING = "endstream";
+    const ENDSTREAM_STRING = "endstream";
     /**
      * This is a string constant that will be used for comparisons.
      */
-    protected static const STREAM_STRING = "stream";
+    const STREAM_STRING = "stream";
     /**
      * This is a string constant that will be used for comparisons.
      */
-    private static const TRUE = "true";
+    const TRUE = "true";
     /**
      * This is a string constant that will be used for comparisons.
      */
-    private static const FALSE = "false";
+    const FALSE = "false";
     /**
      * This is a string constant that will be used for comparisons.
      */
-    private static const NULL = "null";
+    const NULL = "null";
 
     /**
      * ASCII code for line feed.
      */
-    protected static const $ASCII_LF = 10;
+    const ASCII_LF = 10;
     /**
      * ASCII code for carriage return.
      */
-    protected static const ASCII_CR = 13;
-    private static const ASCII_ZERO = 48;
-    private static const ASCII_NINE = 57;
-    private static const ASCII_SPACE = 32;
+    const ASCII_CR = 13;
+    const ASCII_ZERO = 48;
+	const ASCII_NINE = 57;
+    const ASCII_SPACE = 32;
     
     /**
      * This is the stream that will be read from.
      */
-    protected final $seqSource;	// InputStreamSource
+    protected $seqSource;	// InputStreamSource
 
     /**
      * This is the document that will be parsed.
@@ -289,7 +289,7 @@ abstract class BaseParser {
 		if (!is_integer($bracesParameter)) return -1;
         $braces = $bracesParameter;
         $nextThreeBytes = "   ";
-        $amountRead = $this->seqSource->read(&$nextThreeBytes);
+        $amountRead = $this->seqSource->read($nextThreeBytes);
         //lets handle the special case seen in Bull  River Rules and Regulations.pdf
         //The dictionary looks like this
         //    2 0 obj
@@ -307,11 +307,11 @@ abstract class BaseParser {
         // means that there is an error in the pdf and assume that
         // was the end of the document.
         //
-        if ($amountRead == 3 && ($nextThreeBytes=="\r\n/" || substr($nextThreeBytes,0,2)=="\r/") {
+        if ($amountRead == 3 && ($nextThreeBytes=="\r\n/" || substr($nextThreeBytes,0,2)=="\r/")) {
 			$braces = 0;
         }
         if ($amountRead > 0) {
-            $this->seqSource->unread($nextThreeBytes, 0, $amountRead));
+            $this->seqSource->unread($nextThreeBytes, 0, $amountRead);
         }
         return $braces;
     }
@@ -600,7 +600,7 @@ abstract class BaseParser {
         if ($c != -1) {
             $seqSource->unread($c);
         }
-        $string = $buffer->toByteArray()
+        $string = $buffer->toByteArray();
         return COSName::getPDFName($string);
     }
     /**
@@ -650,113 +650,116 @@ abstract class BaseParser {
         switch($c) {
         case '<':
             // pull off first left bracket
-            int leftBracket = seqSource.read();
+            $leftBracket = $this->seqSource->read();
             // check for second left bracket
-            c = (char) seqSource.peek();
-            seqSource.unread(leftBracket);
-            if(c == '<')
-            {
-
-                retval = parseCOSDictionary();
-                skipSpaces();
-            }
-            else
-            {
-                retval = parseCOSString();
+            $c = asc($this->seqSource->peek());
+            $this->seqSource->unread($leftBracket);
+            if($c == '<') {
+                $retval = $this->parseCOSDictionary();
+                $this->skipSpaces();
+            } else {
+                $retval = $this->parseCOSString();
             }
             break;
         case '[':
             // array
-            retval = parseCOSArray();
+            $retval = $this->parseCOSArray();
             break;
         case '(':
-            retval = parseCOSString();
+            $retval = $this->parseCOSString();
             break;
         case '/':   
             // name
-            retval = parseCOSName();
+            $retval = $this->parseCOSName();
             break;
         case 'n':   
             // null
-            readExpectedString(NULL);
-            retval = COSNull.NULL;
+            $this->readExpectedString(NULL);
+            $retval = COSNull::NULL;
             break;
         case 't':
-            String trueString = new String( seqSource.readFully(4), ISO_8859_1 );
-            if( trueString.equals( TRUE ) )
-            {
-                retval = COSBoolean.TRUE;
-            }
-            else
-            {
-                throw new IOException( "expected true actual='" + trueString + "' " + seqSource + 
-                        "' at offset " + seqSource.getPosition());
+            $trueString = $this->seqSource->readFully(4);
+            if( $trueString==TRUE  ) {
+                $retval = COSBoolean::TRUE;
+            } else {
+                throw new Exception( "expected true actual='$trueString' ".$this->seqSource->toString(). 
+                        "' at offset ".$this->seqSource->getPosition());
             }
             break;
         case 'f':
-            String falseString = new String( seqSource.readFully(5), ISO_8859_1 );
-            if( falseString.equals( FALSE ) )
-            {
-                retval = COSBoolean.FALSE;
-            }
-            else
-            {
-                throw new IOException( "expected false actual='" + falseString + "' " + seqSource + 
-                        "' at offset " + seqSource.getPosition());
+            $falseString = $this->seqSource->readFully(5);
+            if( $falseString==FALSE  ) {
+                $retval = COSBoolean::FALSE;
+            } else {
+                throw new Exception( "expected false actual='$falseString' ".$this->seqSource->toString(). 
+                        "' at offset ".$this->seqSource->getPosition());
             }
             break;
         case 'R':
-            seqSource.read();
-            retval = new COSObject(null);
+            $this->seqSource->read();
+            $retval = new COSObject(null);
             break;
-        case (char)-1:
+        case -1:
             return null;
         default:
-            if( Character.isDigit(c) || c == '-' || c == '+' || c == '.')
-            {
-                StringBuilder buf = new StringBuilder();
-                int ic = seqSource.read();
-                c = (char)ic;
-                while( Character.isDigit( c )||
-                        c == '-' ||
-                        c == '+' ||
-                        c == '.' ||
-                        c == 'E' ||
-                        c == 'e' )
+            if( ctype_digit($c) || $c == '-' || $c == '+' || $c == '.') {
+                $buf = "";
+                $ic = $this->seqSource->read();
+                $c = asc($ic);
+                while( ctype_digit( $c )||
+                        $c == '-' ||
+                        $c == '+' ||
+                        $c == '.' ||
+                        $c == 'E' ||
+                        $c == 'e' )
                 {
-                    buf.append( c );
-                    ic = seqSource.read();
-                    c = (char)ic;
+                    $buf.=$c;
+                    $ic = $this->seqSource->read();
+                    $c = asc($ic);
                 }
-                if( ic != -1 )
-                {
-                    seqSource.unread(ic);
+                if( $ic != -1 ) {
+                    $this->seqSource->unread($ic);
                 }
-                retval = COSNumber.get( buf.toString() );
-            }
-            else
-            {
+                $retval = COSNumber::get( $buf );
+            } else {
                 //This is not suppose to happen, but we will allow for it
                 //so we are more compatible with POS writers that don't
                 //follow the spec
-                String badString = readString();
-                if( badString == null || badString.length() == 0 )
-                {
-                    int peek = seqSource.peek();
+                $badString = $this->readString();
+                if( is_null($badString) || strlen($badString) == 0 ) {
+                    $peek = $this->seqSource->peek();
                     // we can end up in an infinite loop otherwise
-                    throw new IOException( "Unknown dir object c='" + c +
-                            "' cInt=" + (int)c + " peek='" + (char)peek 
-                            + "' peekInt=" + peek + " " + seqSource.getPosition() );
+                    throw new Exception( "Unknown dir object c='".$c.
+                            "' cInt=".ord($c)." peek='".asc($peek).
+                            "' peekInt=".$peek." ".$this->seqSource->getPosition() );
                 }
-
                 // if it's an endstream/endobj, we want to put it back so the caller will see it
-                if(ENDOBJ_STRING.equals(badString) || ENDSTREAM_STRING.equals(badString))
-                {
-                    seqSource.unread(badString.getBytes(ISO_8859_1));
+                if($badString==ENDOBJ_STRING || $badString==ENDSTREAM_STRING) {
+                    $this->seqSource->unread($badString);
                 }
             }
         }
         return $retval;
+    }
+    /**
+     * This will read the next string from the stream.
+     *
+     * @return The string that was read from the stream.
+     *
+     * @throws IOException If there is an error reading from the stream.
+     */
+    protected function readString() {
+        $this->skipSpaces();
+        $buffer = "";
+        $c = $this->seqSource->read();
+        while( !$this->isEndOfName($c) && $c != -1 ) {
+            $buffer.=asc($c);
+            $c = $this->seqSource->read();
+        }
+        if ($c != -1) {
+            $this->seqSource->unread($c);
+        }
+        return $buffer;
     }
 
 }
