@@ -340,7 +340,7 @@ abstract class BaseParser {
         $braces = 1;
         $c = $this->seqSource->read();
         while( $braces > 0 && $c != -1) {
-            $ch = asc($c);
+            $ch = chr($c);
             $nextc = -2; // not yet read
             if($ch == $closeBrace) {
                 $braces--;
@@ -353,7 +353,7 @@ abstract class BaseParser {
                 $out->write($ch);
             } else if( $ch == '\\' ) {
                 //patched by ram
-                $next = asc($this->seqSource->read());
+                $next = chr($this->seqSource->read());
                 switch($next) {
                     case 'n': $out->write('\n'); break;
                     case 'r': $out->write('\r'); break;
@@ -394,11 +394,11 @@ abstract class BaseParser {
                         $octal = new StringBuffer();
                         $octal->append( $next );
                         $c = $this->seqSource->read();
-                        $digit = asc($c);
+                        $digit = chr($c);
                         if( $digit >= '0' && $digit <= '7' ) {
                             $octal->append( $digit );
                             $c = $this->seqSource->read();
-                            $digit = asc($c);
+                            $digit = chr($c);
                             if( $digit >= '0' && $digit <= '7' ) {
                                 $octal->append( $digit );
                             } else {
@@ -464,7 +464,7 @@ abstract class BaseParser {
 				throw new Exception( "Missing closing bracket for hex string. Reached EOS." );
 				return null;
 			}
-			$c = asc($c);
+			$c = chr($c);
             if ( $this->isHexDigit($c) ) {
                 $sBuf.=$c;
             } elseif ( c == '>' ) {
@@ -507,7 +507,7 @@ abstract class BaseParser {
         $po = new COSArray();
         $this->skipSpaces();
         $i=-1;
-        while( (($i = $this->seqSource->peek()) > 0) && (asc($i) != ']') ) {
+        while( (($i = $this->seqSource->peek()) > 0) && (chr($i) != ']') ) {
             $pbo = $this->parseDirObject();
             if( $pbo instanceof COSObject ) {
                 // We have to check if the expected values are there or not PDFBOX-385
@@ -571,10 +571,10 @@ abstract class BaseParser {
         $buffer = new ByteArrayOutputStream();
         $c = $this->seqSource->read();
         while ($c != -1) {
-            $ch = asc($c);
+            $ch = chr($c);
             if (ch == '#') {
-                $ch1 = asc($this->seqSource->read());
-                $ch2 = asc($this->seqSource->read());
+                $ch1 = chr($this->seqSource->read());
+                $ch2 = chr($this->seqSource->read());
                 // Prior to PDF v1.2, the # was not a special character.  Also,
                 // it has been observed that various PDF tools do not follow the
                 // spec with respect to the # escape, even though they report
@@ -612,7 +612,7 @@ abstract class BaseParser {
      */
     protected function parseBoolean() {
         $retval = null;
-        $c = asc($this->seqSource->peek());
+        $c = chr($this->seqSource->peek());
         if( $c == 't' )  {
             $trueString = $this->seqSource->readFully( 4 );
             if( $trueString!=TRUE ) {
@@ -646,13 +646,13 @@ abstract class BaseParser {
         $retval = null;
         $this->skipSpaces();
         $nextByte = $this->seqSource->peek();
-        $c = asc($nextByte);
+        $c = chr($nextByte);
         switch($c) {
         case '<':
             // pull off first left bracket
             $leftBracket = $this->seqSource->read();
             // check for second left bracket
-            $c = asc($this->seqSource->peek());
+            $c = chr($this->seqSource->peek());
             $this->seqSource->unread($leftBracket);
             if($c == '<') {
                 $retval = $this->parseCOSDictionary();
@@ -705,7 +705,7 @@ abstract class BaseParser {
             if( ctype_digit($c) || $c == '-' || $c == '+' || $c == '.') {
                 $buf = "";
                 $ic = $this->seqSource->read();
-                $c = asc($ic);
+                $c = chr($ic);
                 while( ctype_digit( $c )||
                         $c == '-' ||
                         $c == '+' ||
@@ -715,7 +715,7 @@ abstract class BaseParser {
                 {
                     $buf.=$c;
                     $ic = $this->seqSource->read();
-                    $c = asc($ic);
+                    $c = chr($ic);
                 }
                 if( $ic != -1 ) {
                     $this->seqSource->unread($ic);
@@ -730,7 +730,7 @@ abstract class BaseParser {
                     $peek = $this->seqSource->peek();
                     // we can end up in an infinite loop otherwise
                     throw new Exception( "Unknown dir object c='".$c.
-                            "' cInt=".ord($c)." peek='".asc($peek).
+                            "' cInt=".ord($c)." peek='".chr($peek).
                             "' peekInt=".$peek." ".$this->seqSource->getPosition() );
                 }
                 // if it's an endstream/endobj, we want to put it back so the caller will see it
@@ -742,25 +742,229 @@ abstract class BaseParser {
         return $retval;
     }
     /**
-     * This will read the next string from the stream.
+     * Reads given pattern from {@link #seqSource}. Skipping whitespace at start and end if wanted.
+     * 
+     * @param expectedString pattern to be skipped
+     * @param skipSpaces if set to true spaces before and after the string will be skipped
+     * @throws IOException if pattern could not be read
+     */
+    protected final function readExpectedString($expectedString,$skipSpaces=false) {
+		if (!is_string($expectedString) || !is_bool($skipSpaces)) return;
+        if ($skipSpaces) $this->skipSpaces();
+        for ($i=0;$i<strlen(expectedString);$i++) {
+            if ($this->seqSource->read() != ord(substr($expectedString,$i,1))) {
+                throw new Exception("Expected string '".$expectedString
+					."' but missed at character '".substr($expectedString,$i,1)."' at offset "
+                    .$this->seqSource->getPosition());
+            }
+        }
+        if($skipSpaces) $this->skipSpaces();
+    }
+    /**
+     * Read one char and throw an exception if it is not the expected value.
      *
-     * @return The string that was read from the stream.
+     * @param ec the char value that is expected.
+     * @throws IOException if the read char is not the expected value or if an
+     * I/O error occurs.
+     */
+    protected function readExpectedChar($ec) {
+        $c = $this->seqSource->read();
+        if ((is_string($ec) && $ec!=chr($c)) || (is_integer($ec) && $ec!=$c)) {
+            throw new Exception("expected='$ec' actual='$c' at offset ".$this->seqSource->getPosition());
+        }
+    }
+    /**
+     * This will read the next string from the stream up to a certain length.
+     *
+     * @param length The length to stop reading at.
+     *
+     * @return The string that was read from the stream of length 0 to length.
      *
      * @throws IOException If there is an error reading from the stream.
      */
-    protected function readString() {
+    protected function readString( $length=-1 ) {
+		if (!is_integer($length)) return;
         $this->skipSpaces();
+        $c = chr($this->seqSource->read());
+        //average string size is around 2 and the normal string buffer size is
+        //about 16 so lets save some space.
         $buffer = "";
-        $c = $this->seqSource->read();
-        while( !$this->isEndOfName($c) && $c != -1 ) {
-            $buffer.=asc($c);
-            $c = $this->seqSource->read();
-        }
-        if ($c != -1) {
+		if ($length>-1) {
+			while( !ctype_space($c) && !$this->isClosing($c) && ord($c) != 255 && strlen($buffer) < $length &&
+					$c != '[' &&
+					$c != '<' &&
+					$c != '(' &&
+					$c != '/' )
+			{
+				$buffer .= $c;
+				$c = chr($this->seqSource->read());
+			}
+		} else {
+			$c = ord($c);
+			while( !$this->isEndOfName($c) && $c != -1 && $c != 255) {
+				$buffer.=chr($c);
+				$c = $this->seqSource->read();
+			}
+		}
+        if ((is_integer($c) && $c!=-1) || (ord($c) != 255)) {
             $this->seqSource->unread($c);
         }
         return $buffer;
     }
-
+    /**
+     * This will tell if the next character is a closing brace( close of PDF array ).
+     *
+     * @param c The character to check against end of line
+     * @return true if the next byte is ']', false otherwise.
+     */
+    protected function isClosing($c=null) {
+		if (is_null($c)) $c=$this->seqSource->peek();
+		if (is_string($c)) return $c == ']';
+		elseif (is_integer($c)) return chr($c) == ']';
+		else return false;
+    }
+    /**
+     * This will read bytes until the first end of line marker occurs.
+     * NOTE: The EOL marker may consists of 1 (CR or LF) or 2 (CR and CL) bytes
+     * which is an important detail if one wants to unread the line.
+     *
+     * @return The characters between the current position and the end of the line.
+     *
+     * @throws IOException If there is an error reading from the stream.
+     */
+    protected function readLine() {
+        if ($this->seqSource->isEOF()) {
+            throw new Exception( "Error: End-of-File, expected line");
+        }
+        $buffer = "";
+        while (($c = $this->seqSource->read()) != -1) {
+            // CR and LF are valid EOLs
+            if ($c==10 || $c==13) {
+                break;
+            }
+            $buffer .= chr($c);
+        }
+        // CR+LF is also a valid EOL 
+        if ($c==13 && $this->seqSource->peek()==10) {
+            $this->seqSource->read();
+        }
+        return $buffer;
+    }
+    /**
+     * This will skip all spaces and comments that are present.
+     *
+     * @throws IOException If there is an error reading from the stream.
+     */
+    protected function skipSpaces() {
+        $c = $this->seqSource->read();
+        // 37 is the % character, a comment
+        while( ctype_space(chr($c)) || c == 37) {
+            if ( $c == 37 ) {
+                // skip past the comment section
+                $c = $this->seqSource->read();
+                while($c!=10 && $c!=13 && $c != -1) {
+                    $c = $this->seqSource->read();
+                }
+            } else {
+                $c = $this->seqSource->read();
+            }
+        }
+        if ($c != -1) {
+            $this->seqSource->unread($c);
+        }
+    }
+    /**
+     * This will read a long from the Stream and throw an {@link IOException} if
+     * the long value is negative or has more than 10 digits (i.e. : bigger than
+     * {@link #OBJECT_NUMBER_THRESHOLD})
+     *
+     * @return the object number being read.
+     * @throws IOException if an I/O error occurs
+     */
+    protected function readObjectNumber() {
+        $retval = $this->readLong();
+        if ($retval < 0 || $retval >= $this->OBJECT_NUMBER_THRESHOLD) {
+            throw new Exception("Object Number '$retval' has more than 10 digits or is negative");
+        }
+        return $retval;
+    }
+    /**
+     * This will read a integer from the Stream and throw an {@link IllegalArgumentException} if the integer value
+     * has more than the maximum object revision (i.e. : bigger than {@link #GENERATION_NUMBER_THRESHOLD})
+     * @return the generation number being read.
+     * @throws IOException if an I/O error occurs
+     */
+    protected function readGenerationNumber() {
+        $retval = $this->readInt();
+        if($retval < 0 || $retval > $this->GENERATION_NUMBER_THRESHOLD) {
+            throw new Exception("Generation Number '$retval' has more than 5 digits");
+        }
+        return $retval;
+    }
+    /**
+     * This will read an integer from the stream.
+     *
+     * @return The integer that was read from the stream.
+     *
+     * @throws IOException If there is an error reading from the stream.
+     */
+    protected function readInt() {
+        $this->skipSpaces();
+        $retval = 0;
+        $intBuffer = $this->readStringNumber();
+        try {
+            $retval = 0 + $intBuffer;
+        } catch( Exception $e ) {
+            $this->seqSource->unread($intBuffer);
+            throw new Exception( "Error: Expected an integer type at offset ".$this->seqSource->getPosition());
+        }
+        return $retval;
+    }
+    /**
+     * This will read an long from the stream.
+     *
+     * @return The long that was read from the stream.
+     *
+     * @throws IOException If there is an error reading from the stream.
+     */
+    protected function readLong() {
+        $this->skipSpaces();
+        $retval = 0;
+        $longBuffer = $this->readStringNumber();
+        try {
+            $retval = 0 + $longBuffer;
+        } catch( Exception $e ) {
+            $this->seqSource->unread($longBuffer);
+            throw new Exception( "Error: Expected a long type at offset "
+                    .$this->seqSource->getPosition().", instead got '$longBuffer'");
+        }
+        return $retval;
+    }
+    /**
+     * This method is used to read a token by the {@linkplain #readInt()} method
+     * and the {@linkplain #readLong()} method.
+     *
+     * @return the token to parse as integer or long by the calling method.
+     * @throws IOException throws by the {@link #seqSource} methods.
+     */
+    protected final function readStringNumber() {
+        $lastByte = 0;
+        $buffer = "";
+        while( ($lastByte = $this->seqSource->read() ) != ASCII_SPACE &&
+                $lastByte != ASCII_LF &&
+                $lastByte != ASCII_CR &&
+                $lastByte != 60 && //see sourceforge bug 1714707
+                chr($lastByte) != '[' && // PDFBOX-1845
+                chr($lastByte) != '(' && // PDFBOX-2579
+                $lastByte != 0 && //See sourceforge bug 853328
+                $lastByte != -1 )
+        {
+            $buffer .= chr($lastByte);
+        }
+        if( $lastByte != -1 ) {
+            $this->seqSource->unread($lastByte);
+        }
+        return $buffer;
+    }
 }
 ?>
