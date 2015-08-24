@@ -163,97 +163,55 @@ public class COSArray extends COSBase {
      * @param index The index into the array.
      * @param name The name to set in the array.
      */
-    public function setName( int index, String name )
-    {
-        set( index, COSName.getPDFName( name ) );
+    public function setName( $index, $name ) {
+        $this->set( $index, COSName::getPDFName( $name ) );
     }
-
-    /**
-     * Get the value of the array as a string.
-     *
-     * @param index The index into the array.
-     * @return The name converted to a string or null if it does not exist.
-     */
-    public function getName( int index )
-    {
-        return getName( index, null );
-    }
-
     /**
      * Get an entry in the array that is expected to be a COSName.
      * @param index The index into the array.
      * @param defaultValue The value to return if it is null.
      * @return The value at the index or defaultValue if none is found.
      */
-    public function getName( int index, String defaultValue )
-    {
-        String retval = defaultValue;
-        if( index < size() )
-        {
-            Object obj = objects.get( index );
-            if( obj instanceof COSName )
-            {
-                retval = ((COSName)obj).getName();
+    public function getName( $index, $defaultValue=null ) {
+        $retval = $defaultValue;
+        if( $index < $this->size() ) {
+            $obj = $this->objects[$index];
+            if( $obj instanceof COSName ) {
+                $retval = $obj->getName();
             }
         }
-        return retval;
+        return $retval;
     }
-
     /**
      * Set the value in the array as a string.
      * @param index The index into the array.
      * @param string The string to set in the array.
      */
-    public function setString( int index, String string )
-    {
-        if ( string != null )
-        {
-            set( index, new COSString( string ) );
-        }
-        else
-        {
-            set( index, null );
+    public function setString( $index, $string ) {
+		if (!is_integer($index) || !is_string($string)) return;
+        if ( !is_null($string) ) {
+            $this->set( $index, $string );
+        } else {
+            $this->set( $index, null );
         }
     }   
-
-    /**
-     * Get the value of the array as a string.
-     *
-     * @param index The index into the array.
-     * @return The string or null if it does not exist.
-     */
-    public function getString( int index )
-    {
-        return getString( index, null );
-    }
-
     /**
      * Get an entry in the array that is expected to be a COSName.
      * @param index The index into the array.
      * @param defaultValue The value to return if it is null.
      * @return The value at the index or defaultValue if none is found.
      */
-    public function getString( int index, String defaultValue )
-    {
-        String retval = defaultValue;
-        if( index < size() )
-        {
-            Object obj = objects.get( index );
-            if( obj instanceof COSString )
-            {
-                retval = ((COSString)obj).getString();
-            }
-        }
-        return retval;
+    public function getString( $index, $defaultValue=null ) {
+		if (!is_integer($index) || !isset($this->objects[$index])) return $defaultValue;
+		if (!is_string($this->objects[$index])) return $defaultValue;
+		return $this->objects[$index];
     }
-
     /**
      * This will get the size of this array.
      *
      * @return The number of elements in the array.
      */
-    public function size()
-    {
+    public function size() {
         return count($this->objects);
     }
 
@@ -261,27 +219,33 @@ public class COSArray extends COSBase {
      * This will remove an element from the array.
      *
      * @param i The index of the object to remove.
-     *
-     * @return The object that was removed.
-     */
-    public function remove( int i )
-    {
-        return objects.remove( i );
-    }
-
-    /**
-     * This will remove an element from the array.
-     *
      * @param o The object to remove.
      *
+     * @return The object that was removed, if an index was supplied.
      * @return <code>true</code> if the object was removed, <code>false</code>
      *  otherwise
      */
-    public function remove( COSBase o )
-    {
-        return objects.remove( o );
+    public function remove( $what ) {
+		if ($what instanceof COSBase) {
+			$i = array_search($what,$this->objects);
+			if ($i===false) return false;
+			unset($this->objects[$i]);
+			return true;
+		} elseif (is_integer($what)) {
+			// This could be either a key or a value.  We're going to assume a key if one exists, or object if it doesn't.
+			if (isset($this->objects[$what])) {
+				$obj = $this->objects[$what];
+				unset($this->objects[$what]);
+				return $obj;
+			}
+		}
+		// The same logic as COSBase is duplicated here because of the uncertainty of the parameter.
+		// It will be easier to make changes in the future based on the certainly level if they are split.
+		$i = array_search($what,$this->objects);
+		if ($i===false || is_null($i)) return false;
+		unset($this->objects[$i]);
+		return true;
     }
-
     /**
      * This will remove an element from the array.
      * This method will also remove a reference to the object.
@@ -290,66 +254,45 @@ public class COSArray extends COSBase {
      * @return <code>true</code> if the object was removed, <code>false</code>
      *  otherwise
      */
-    public function removeObject(COSBase o)
-    {
-        boolean removed = this.remove(o);
-        if (!removed)
-        {
-            for (int i = 0; i < this.size(); i++)
-            {
-                COSBase entry = this.get(i);
-                if (entry instanceof COSObject)
-                {
-                    COSObject objEntry = (COSObject) entry;
-                    if (objEntry.getObject().equals(o))
-                    {
-                        return this.remove(entry);
+    public function removeObject($o) {
+		$i = array_search($o,$this->objects);
+		if ($i===false || is_null($i)) $removed = false;
+		else {
+			unset($this->objects[$i]);
+			$removed = true;
+		}	
+        if (!$removed) {
+            for ($i = 0; $i < $this->size(); $i++) {
+                $entry = $this->objects[$i];
+                if ($entry instanceof COSObject) {
+                    $objEntry = $entry;
+                    if ($objEntry->getObject()==$o) {
+                        unset ($this->objects[$i]);
+						return true;
                     }
                 }
             }
         }
-        return removed;
+        return $removed;
     }
-
     /**
      * {@inheritDoc}
      */
     @Override
-    public function toString()
-    {
-        return "COSArray{" + objects + "}";
+    public function toString() {
+        return "COSArray{".var_export($this->objects,true)."}";
     }
-
-    /**
-     * Get access to the list.
-     *
-     * @return an iterator over the array elements
-     */
-    @Override
-    public function iterator()
-    {
-        return objects.iterator();
-    }
-
     /**
      * This will return the index of the entry or -1 if it is not found.
      *
      * @param object The object to search for.
      * @return The index of the object or -1.
      */
-    public function indexOf( COSBase object )
-    {
-        int retval = -1;
-        for( int i=0; retval < 0 && i<size(); i++ )
-        {
-            if( get( i ).equals( object ) )
-            {
-                retval = i;
-            }
-        }
-        return retval;
-    }
-
+    public function indexOf( $object ) {
+		$result = array_search($object,$this->objects);
+		if (is_null($result) || $result===false) return -1;
+		else return $result;
+	}
     /**
      * This will return the index of the entry or -1 if it is not found.
      * This method will also find references to indirect objects.
@@ -357,38 +300,20 @@ public class COSArray extends COSBase {
      * @param object The object to search for.
      * @return The index of the object or -1.
      */
-    public function indexOfObject(COSBase object)
-    {
-        int retval = -1;
-        for (int i = 0; retval < 0 && i < this.size(); i++)
-        {
-            COSBase item = this.get(i);
-            if (item.equals(object))
-            {
-                retval = i;
+    public function indexOfObject($object) {
+        $retval = -1;
+        for ($i = 0; $retval < 0 && $i < $this->size(); $i++) {
+            $item = $this->objects[$i];
+            if ($item==$object) {
+                $retval = $i;
                 break;
-            }
-            else if (item instanceof COSObject && ((COSObject) item).getObject().equals(object))
-            {
-                retval = i;
+            } elseif ($item instanceof COSObject && $item->getObject()==$object) {
+                $retval = $i;
                 break;
             }
         }
-        return retval;
+        return $retval;
     }
-
-    /**
-     * This will add null values until the size of the array is at least
-     * as large as the parameter.  If the array is already larger than the
-     * parameter then nothing is done.
-     *
-     * @param size The desired size of the array.
-     */
-    public function growToSize( int size )
-    {
-        growToSize( size, null );
-    }
-
     /**
      * This will add the object until the size of the array is at least
      * as large as the parameter.  If the array is already larger than the
@@ -397,14 +322,9 @@ public class COSArray extends COSBase {
      * @param size The desired size of the array.
      * @param object The object to fill the array with.
      */
-    public function growToSize( int size, COSBase object )
-    {
-        while( size() < size )
-        {
-            add( object );
-        }
+    public function growToSize( $size, $object=null ) {
+		array_pad($this->objects,$size,$object);
     }
-
     /**
      * visitor pattern double dispatch method.
      *
@@ -413,53 +333,30 @@ public class COSArray extends COSBase {
      * @throws IOException If an error occurs while visiting this object.
      */
     @Override
-    public function accept(ICOSVisitor visitor) throws IOException
-    {
-        return visitor.visitFromArray(this);
+    public function accept($visitor) {
+		if (!($visitor instanceof ICOSVisitor)) return null;
+        return $visitor->visitFromArray($this);
     }
-
     /**
      * This will take an COSArray of numbers and convert it to a float[].
      *
      * @return This COSArray as an array of float numbers.
      */
-    public function toFloatArray()
-    {
-        float[] retval = new float[size()];
-        for( int i=0; i<size(); i++ )
-        {
-            retval[i] = ((COSNumber)getObject( i )).floatValue();
+    public function toFloatArray() {
+        $retval = array();
+		array_pad($retval,count($this->objects),0.00);
+        for( $i=0; $i<$this->size(); $i++ ) {
+            $retval[$i] = 0.00+$this->getObject($i);
         }
-        return retval;
+        return $retval;
     }
-
     /**
      * Clear the current contents of the COSArray and set it with the float[].
      *
      * @param value The new value of the float array.
      */
-    public function setFloatArray( float[] value )
-    {
-        this.clear();
-        for( int i=0; i<value.length; i++ )
-        {
-            add( new COSFloat( value[i] ) );
-        }
-    }
-
-    /**
-     *  Return contents of COSArray as a Java List.
-     *
-     *  @return the COSArray as List
-     */
-    public function toList()
-    {
-        List<COSBase> retList = new ArrayList<COSBase>(size());
-        for (int i = 0; i < size(); i++)
-        {
-            retList.add(get(i));
-        }
-        return retList;
+    public function setFloatArray( $value ) {
+		if (is_array($value)) $this->objects = $value;
     }
 }
 ?>
