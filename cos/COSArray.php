@@ -15,23 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.pdfbox.cos;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-
-import org.apache.pdfbox.pdmodel.common.COSObjectable;
+require_once('../pdmodel/common/COSObjectable.php');
 
 /**
  * An array of PDFBase objects as part of the PDF document.
  *
  * @author Ben Litchfield
  */
-public class COSArray extends COSBase {
-    private final objects = array();
+class COSArray extends COSBase {
+    private $objects = array();
 
     /**
      * Constructor.
@@ -278,7 +270,6 @@ public class COSArray extends COSBase {
     /**
      * {@inheritDoc}
      */
-    @Override
     public function toString() {
         return "COSArray{".var_export($this->objects,true)."}";
     }
@@ -332,7 +323,6 @@ public class COSArray extends COSBase {
      * @return any object, depending on the visitor implementation, or null
      * @throws IOException If an error occurs while visiting this object.
      */
-    @Override
     public function accept($visitor) {
 		if (!($visitor instanceof ICOSVisitor)) return null;
         return $visitor->visitFromArray($this);
