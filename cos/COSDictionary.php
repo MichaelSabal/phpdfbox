@@ -157,8 +157,7 @@ class COSDictionary extends COSBase {
      * @param key The key to the date value.
      * @param date The date value.
      */
-    public function setDate($key, $date)
-    {
+    public function setDate($key, $date)  {
 		if (is_integer($date)) $date = new DateTime("@$date");
 		if (is_string($date)) $this->setString($key, $date);
 		elseif ($date instanceof DateTime) {
@@ -254,30 +253,15 @@ class COSDictionary extends COSBase {
             $dic->setInt($key, $date);
         }
     }
-
     /**
      * This is a convenience method that will convert the value to a COSFloat object.
      *
      * @param key The key to the object,
      * @param value The int value for the name.
      */
-    public void setFloat(String key, float value)
-    {
-        setFloat(COSName.getPDFName(key), value);
+    public function setFloat($key, $value) {
+        $this->setItem($key, $value);
     }
-
-    /**
-     * This is a convenience method that will convert the value to a COSFloat object.
-     *
-     * @param key The key to the object,
-     * @param value The int value for the name.
-     */
-    public void setFloat(COSName key, float value)
-    {
-        COSFloat fltVal = new COSFloat(value);
-        setItem(key, fltVal);
-    }
-
     /**
      * Sets the given boolean value at bitPos in the flags.
      *
@@ -285,37 +269,18 @@ class COSDictionary extends COSBase {
      * @param bitFlag the bit position to set the value in.
      * @param value the value the bit position should have.
      */
-    public void setFlag(COSName field, int bitFlag, boolean value)
-    {
-        int currentFlags = getInt(field, 0);
-        if (value)
-        {
-            currentFlags = currentFlags | bitFlag;
+    public function setFlag($field, $bitFlag, $value) {
+		if (!($field instanceof COSName)) return;
+		if (!is_integer($bitFlag)) return;
+		if (!is_bool($value)) return;
+        $currentFlags = $this->getInt($field, 0);
+        if ($value) {
+            $currentFlags = $currentFlags | $bitFlag;
+        } else {
+            $currentFlags &= ~$bitFlag;
         }
-        else
-        {
-            currentFlags &= ~bitFlag;
-        }
-        setInt(field, currentFlags);
+        $this->setInt($field, $currentFlags);
     }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name. Null is returned
-     * if the entry does not exist in the dictionary.
-     *
-     * @param key The key to the item in the dictionary.
-     * @return The COS name.
-     */
-    public COSName getCOSName(COSName key)
-    {
-        COSBase name = getDictionaryObject(key);
-        if (name instanceof COSName)
-        {
-            return (COSName) name;
-        }
-        return null;
-    }
-
     /**
      * This is a convenience method that will get the dictionary object that is expected to be a name. Default is
      * returned if the entry does not exist in the dictionary.
@@ -324,12 +289,10 @@ class COSDictionary extends COSBase {
      * @param defaultValue The value to return if the dictionary item is null.
      * @return The COS name.
      */
-    public COSName getCOSName(COSName key, COSName defaultValue)
-    {
-        COSBase name = getDictionaryObject(key);
-        if (name instanceof COSName)
-        {
-            return (COSName) name;
+    public function getCOSName($key, $defaultValue=null) {
+        $name = $this->getDictionaryObject($key);
+        if ($name instanceof COSName) {
+            return $name;
         }
         return defaultValue;
     }
@@ -341,11 +304,20 @@ class COSDictionary extends COSBase {
      * @param key The key to the item in the dictionary.
      * @return The name converted to a string.
      */
-    public String getNameAsString(String key)
-    {
-        return getNameAsString(COSName.getPDFName(key));
+    public function getNameAsString($key,$defaultValue=null) {
+		if (is_string($key)) $key = COSName::getPDFName($key);
+        $retval = null;
+        $name = $this->getDictionaryObject($key);
+        if ($name instanceof COSName) {
+            $retval = $name->getName();
+		} elseif (is_string($name)) {
+			$retval = $name;
+        } elseif ($name instanceof COSString) {
+            $retval = $name->getString();
+        } 
+		if (is_null($retval)) return $defaultValue;
+        return $retval;
     }
-
     /**
      * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
      * a string. Null is returned if the entry does not exist in the dictionary.
@@ -353,139 +325,17 @@ class COSDictionary extends COSBase {
      * @param key The key to the item in the dictionary.
      * @return The name converted to a string.
      */
-    public String getNameAsString(COSName key)
-    {
-        String retval = null;
-        COSBase name = getDictionaryObject(key);
-        if (name instanceof COSName)
-        {
-            retval = ((COSName) name).getName();
-        }
-        else if (name instanceof COSString)
-        {
-            retval = ((COSString) name).getString();
-        }
-        return retval;
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The name converted to a string.
-     */
-    public String getNameAsString(String key, String defaultValue)
-    {
-        return getNameAsString(COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The name converted to a string.
-     */
-    public String getNameAsString(COSName key, String defaultValue)
-    {
-        String retval = getNameAsString(key);
-        if (retval == null)
-        {
-            retval = defaultValue;
-        }
-        return retval;
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param key The key to the item in the dictionary.
-     * @return The name converted to a string.
-     */
-    public String getString(String key)
-    {
-        return getString(COSName.getPDFName(key));
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param key The key to the item in the dictionary.
-     * @return The name converted to a string.
-     */
-    public String getString(COSName key)
-    {
-        String retval = null;
-        COSBase value = getDictionaryObject(key);
-        if (value instanceof COSString)
-        {
-            retval = ((COSString) value).getString();
-        }
-        return retval;
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The default value to return.
-     * @return The name converted to a string.
-     */
-    public String getString(String key, String defaultValue)
-    {
-        return getString(COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The default value to return.
-     * @return The name converted to a string.
-     */
-    public String getString(COSName key, String defaultValue)
-    {
-        String retval = getString(key);
-        if (retval == null)
-        {
-            retval = defaultValue;
-        }
-        return retval;
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param embedded The embedded dictionary.
-     * @param key The key to the item in the dictionary.
-     * @return The name converted to a string.
-     */
-    public String getEmbeddedString(String embedded, String key)
-    {
-        return getEmbeddedString(embedded, COSName.getPDFName(key), null);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param embedded The embedded dictionary.
-     * @param key The key to the item in the dictionary.
-     * @return The name converted to a string.
-     */
-    public String getEmbeddedString(String embedded, COSName key)
-    {
-        return getEmbeddedString(embedded, key, null);
-    }
-
+	public function getString($key,$defaultValue=null) {
+		if (is_string($key)) $key = COSName::getPDFName($key);
+        $retval = null;
+        $value = $this->getDictionaryObject($key);
+		if (is_string($value)) $retval = $value;
+		elseif ($value instanceof COSString) {
+            $retval = $value->getString();
+        } 
+		if (is_null($retval)) return $defaultValue;
+        return $retval;
+	}
     /**
      * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
      * a string. Null is returned if the entry does not exist in the dictionary.
@@ -495,31 +345,14 @@ class COSDictionary extends COSBase {
      * @param defaultValue The default value to return.
      * @return The name converted to a string.
      */
-    public String getEmbeddedString(String embedded, String key, String defaultValue)
-    {
-        return getEmbeddedString(embedded, COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param embedded The embedded dictionary.
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The default value to return.
-     * @return The name converted to a string.
-     */
-    public String getEmbeddedString(String embedded, COSName key, String defaultValue)
-    {
-        String retval = defaultValue;
-        COSDictionary dic = (COSDictionary) getDictionaryObject(embedded);
-        if (dic != null)
-        {
-            retval = dic.getString(key, defaultValue);
+    public function getEmbeddedString($embedded, $key, $defaultValue=null) {
+        $retval = $defaultValue;
+        $dic = $this->getDictionaryObject($embedded);
+        if ($dic != null) {
+            $retval = $dic->getString($key, $defaultValue);
         }
-        return retval;
+        return $retval;
     }
-
     /**
      * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
      * a string. Null is returned if the entry does not exist in the dictionary or if the date was invalid.
@@ -527,55 +360,27 @@ class COSDictionary extends COSBase {
      * @param key The key to the item in the dictionary.
      * @return The name converted to a date.
      */
-    public Calendar getDate(String key)
-    {
-        return getDate(COSName.getPDFName(key));
+    public function getDate($key, $defaultValue=null) {
+ 		if (is_string($key)) $key = COSName::getPDFName($key);
+        $date = $this->getDictionaryObject($key);
+		if (is_null($date)) return $defaultValue;
+		if (strlen($date)>=17 && substr($date,0,3)=='\D:') {
+			$y = substr($date,3,4);
+			$m = substr($date,7,2);
+			$d = substr($date,9,2);
+			$h = substr($date,11,2);
+			$n = substr($date,13,2);
+			$s = substr($date,15,2);
+			$tz = substr($date,17);
+			if ($tz=='Z') $tz = '00:00';
+			if (strlen($tz)==7) {
+				$tz = substr($tz,0,6);
+				$tz[3] = ':';
+			}
+			$dt = new DateTime($y,$m,$d,$h,$n,$s,$tz);
+			return $dt;
+		} else return $date;        
     }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary or if the date was invalid.
-     *
-     * @param key The key to the item in the dictionary.
-     * @return The name converted to a date.
-     */
-    public Calendar getDate(COSName key)
-    {
-        COSString date = (COSString) getDictionaryObject(key);
-        return DateConverter.toCalendar(date);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a date. Null is returned
-     * if the entry does not exist in the dictionary or if the date was invalid.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The default value to return.
-     * @return The name converted to a date.
-     */
-    public Calendar getDate(String key, Calendar defaultValue)
-    {
-        return getDate(COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a date. Null is returned
-     * if the entry does not exist in the dictionary or if the date was invalid.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The default value to return.
-     * @return The name converted to a date.
-     */
-    public Calendar getDate(COSName key, Calendar defaultValue)
-    {
-        Calendar retval = getDate(key);
-        if (retval == null)
-        {
-            retval = defaultValue;
-        }
-        return retval;
-    }
-
     /**
      * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
      * a string. Null is returned if the entry does not exist in the dictionary.
