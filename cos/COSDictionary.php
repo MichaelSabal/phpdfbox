@@ -15,8 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-require_once('../pdmodel/common/COSObjectable.php');
-require_once('../util/DateConverter.php');	// May just use base PHP functionality.
 
 /**
  * This class represents a dictionary where name/value pairs reside.
@@ -31,7 +29,7 @@ class COSDictionary extends COSBase {
     /**
      * The name-value pairs of this dictionary. The pairs are kept in the order they were added to the dictionary.
      */
-    protected $items = new array();	// Note: Key order is important here, and must be preserved.
+    protected $items = array();	// Note: Key order is important here, and must be preserved.
     /**
      * Copy Constructor. This will make a shallow copy of this dictionary.
      *
@@ -83,7 +81,7 @@ class COSDictionary extends COSBase {
      * This will clear all items in the map.
      */
     public function clear() {
-        $items = new array();
+        $items = array();
     }
     /**
      * This will get an object from this dictionary. If the object is a reference then it will dereference it and get it
@@ -223,7 +221,7 @@ class COSDictionary extends COSBase {
      * @param key The key to the object,
      * @param value The int value for the name.
      */
-    public void setInt($key, $value) {
+    public function setInt($key, $value) {
         $this->setItem($key,$value);
     }
     /**
@@ -382,35 +380,6 @@ class COSDictionary extends COSBase {
 		} else return $date;        
     }
     /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param embedded The embedded dictionary to get.
-     * @param key The key to the item in the dictionary.
-     * @return The name converted to a string.
-     * @throws IOException If there is an error converting to a date.
-     */
-    public Calendar getEmbeddedDate(String embedded, String key) throws IOException
-    {
-        return getEmbeddedDate(embedded, COSName.getPDFName(key), null);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a name and convert it to
-     * a string. Null is returned if the entry does not exist in the dictionary.
-     *
-     * @param embedded The embedded dictionary to get.
-     * @param key The key to the item in the dictionary.
-     * @return The name converted to a string.
-     *
-     * @throws IOException If there is an error converting to a date.
-     */
-    public Calendar getEmbeddedDate(String embedded, COSName key) throws IOException
-    {
-        return getEmbeddedDate(embedded, key, null);
-    }
-
-    /**
      * This is a convenience method that will get the dictionary object that is expected to be a date. Null is returned
      * if the entry does not exist in the dictionary.
      *
@@ -420,62 +389,15 @@ class COSDictionary extends COSBase {
      * @return The name converted to a string.
      * @throws IOException If there is an error converting to a date.
      */
-    public Calendar getEmbeddedDate(String embedded, String key, Calendar defaultValue)
-            throws IOException
-    {
-        return getEmbeddedDate(embedded, COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a date. Null is returned
-     * if the entry does not exist in the dictionary.
-     *
-     * @param embedded The embedded dictionary to get.
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The default value to return.
-     * @return The name converted to a string.
-     * @throws IOException If there is an error converting to a date.
-     */
-    public Calendar getEmbeddedDate(String embedded, COSName key, Calendar defaultValue)
-            throws IOException
-    {
-        Calendar retval = defaultValue;
-        COSDictionary eDic = (COSDictionary) getDictionaryObject(embedded);
-        if (eDic != null)
-        {
-            retval = eDic.getDate(key, defaultValue);
+    public function getEmbeddedDate($embedded, $key, $defaultValue=null) {
+ 		if (is_string($key)) $key = COSName::getPDFName($key);
+        $retval = $defaultValue;
+        $eDic = $this->getDictionaryObject($embedded);
+        if (!is_null($eDic)) {
+            $retval = $eDic->getDate($key, $defaultValue);
         }
-        return retval;
+        return $retval;
     }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a cos boolean and convert
-     * it to a primitive boolean.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The value returned if the entry is null.
-     *
-     * @return The value converted to a boolean.
-     */
-    public boolean getBoolean(String key, boolean defaultValue)
-    {
-        return getBoolean(COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a COSBoolean and convert
-     * it to a primitive boolean.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The value returned if the entry is null.
-     *
-     * @return The entry converted to a boolean.
-     */
-    public boolean getBoolean(COSName key, boolean defaultValue)
-    {
-        return getBoolean(key, null, defaultValue);
-    }
-
     /**
      * This is a convenience method that will get the dictionary object that is expected to be a COSBoolean and convert
      * it to a primitive boolean.
@@ -486,43 +408,16 @@ class COSDictionary extends COSBase {
      *
      * @return The entry converted to a boolean.
      */
-    public boolean getBoolean(COSName firstKey, COSName secondKey, boolean defaultValue)
-    {
-        boolean retval = defaultValue;
-        COSBase bool = getDictionaryObject(firstKey, secondKey);
-        if (bool instanceof COSBoolean)
-        {
-            retval = ((COSBoolean) bool).getValue();
+    public function getBoolean($firstKey, $secondKey=null, $defaultValue=null) {
+ 		if (is_string($firstKey)) $firstKey = COSName::getPDFName($firstKey);
+ 		if (is_string($secondKey)) $secondKey = COSName::getPDFName($secondKey);
+        $retval = $defaultValue;
+        $bool = $this->getDictionaryObject($firstKey, $secondKey);
+        if (is_bool($bool)) {
+            $retval = $bool;
         }
         return retval;
     }
-
-    /**
-     * Get an integer from an embedded dictionary. Useful for 1-1 mappings. default:-1
-     *
-     * @param embeddedDictionary The name of the embedded dictionary.
-     * @param key The key in the embedded dictionary.
-     *
-     * @return The value of the embedded integer.
-     */
-    public int getEmbeddedInt(String embeddedDictionary, String key)
-    {
-        return getEmbeddedInt(embeddedDictionary, COSName.getPDFName(key));
-    }
-
-    /**
-     * Get an integer from an embedded dictionary. Useful for 1-1 mappings. default:-1
-     *
-     * @param embeddedDictionary The name of the embedded dictionary.
-     * @param key The key in the embedded dictionary.
-     *
-     * @return The value of the embedded integer.
-     */
-    public int getEmbeddedInt(String embeddedDictionary, COSName key)
-    {
-        return getEmbeddedInt(embeddedDictionary, key, -1);
-    }
-
     /**
      * Get an integer from an embedded dictionary. Useful for 1-1 mappings.
      *
@@ -532,246 +427,38 @@ class COSDictionary extends COSBase {
      *
      * @return The value of the embedded integer.
      */
-    public int getEmbeddedInt(String embeddedDictionary, String key, int defaultValue)
-    {
-        return getEmbeddedInt(embeddedDictionary, COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * Get an integer from an embedded dictionary. Useful for 1-1 mappings.
-     *
-     * @param embeddedDictionary The name of the embedded dictionary.
-     * @param key The key in the embedded dictionary.
-     * @param defaultValue The value if there is no embedded dictionary or it does not contain the key.
-     *
-     * @return The value of the embedded integer.
-     */
-    public int getEmbeddedInt(String embeddedDictionary, COSName key, int defaultValue)
-    {
-        int retval = defaultValue;
-        COSDictionary embedded = (COSDictionary) getDictionaryObject(embeddedDictionary);
-        if (embedded != null)
-        {
-            retval = embedded.getInt(key, defaultValue);
+    public function getEmbeddedInt($embeddedDictionary, $key, $defaultValue=0) {
+ 		if (is_string($key)) $key = COSName::getPDFName($key);
+        $retval = $defaultValue;
+        $embedded = $this->getDictionaryObject($embeddedDictionary);
+        if (!is_null($embedded)) {
+            $retval = $embedded->getInt($key, $defaultValue);
         }
-        return retval;
+        return $retval;
     }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an int. -1 is returned if
-     * there is no value.
-     *
-     * @param key The key to the item in the dictionary.
-     * @return The integer value.
-     */
-    public int getInt(String key)
-    {
-        return getInt(COSName.getPDFName(key), -1);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an int. -1 is returned if
-     * there is no value.
-     *
-     * @param key The key to the item in the dictionary.
-     * @return The integer value..
-     */
-    public int getInt(COSName key)
-    {
-        return getInt(key, -1);
-    }
-
     /**
      * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
      * dictionary value is null then the default Value will be returned.
      *
-     * @param keyList The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The integer value.
-     */
-    public int getInt(String[] keyList, int defaultValue)
-    {
-        int retval = defaultValue;
-        COSBase obj = getDictionaryObject(keyList);
-        if (obj instanceof COSNumber)
-        {
-            retval = ((COSNumber) obj).intValue();
-        }
-        return retval;
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
-     * dictionary value is null then the default Value will be returned.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The integer value.
-     */
-    public int getInt(String key, int defaultValue)
-    {
-        return getInt(COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
-     * dictionary value is null then the default Value will be returned.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The integer value.
-     */
-    public int getInt(COSName key, int defaultValue)
-    {
-        return getInt(key, null, defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
-     * dictionary value is null then the default Value -1 will be returned.
-     *
-     * @param firstKey The first key to the item in the dictionary.
-     * @param secondKey The second key to the item in the dictionary.
-     * @return The integer value.
-     */
-    public int getInt(COSName firstKey, COSName secondKey)
-    {
-        return getInt(firstKey, secondKey, -1);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
-     * dictionary value is null then the default Value will be returned.
-     *
-     * @param firstKey The first key to the item in the dictionary.
+     * @param firstKey The first key (or keylist) to the item in the dictionary.
      * @param secondKey The second key to the item in the dictionary.
      * @param defaultValue The value to return if the dictionary item is null.
      * @return The integer value.
      */
-    public int getInt(COSName firstKey, COSName secondKey, int defaultValue)
-    {
-        int retval = defaultValue;
-        COSBase obj = getDictionaryObject(firstKey, secondKey);
-        if (obj instanceof COSNumber)
-        {
-            retval = ((COSNumber) obj).intValue();
+    public function getInt($firstKey, $secondKey=null, $defaultValue=0) {
+ 		if (is_string($firstKey)) $firstKey = COSName::getPDFName($firstKey);
+ 		if (is_string($secondKey)) $secondKey = COSName::getPDFName($secondKey);
+        $retval = $defaultValue;
+		if (is_array($firstKey)) $obj = $this->getDictionaryObject($firstKey);
+        else $obj = $this->getDictionaryObject($firstKey, $secondKey);
+        if (is_numeric($obj)) {
+            $retval = floor($obj);
         }
-        return retval;
+        return $retval;
     }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an long. -1 is returned
-     * if there is no value.
-     *
-     * @param key The key to the item in the dictionary.
-     *
-     * @return The long value.
-     */
-    public long getLong(String key)
-    {
-        return getLong(COSName.getPDFName(key), -1L);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an long. -1 is returned
-     * if there is no value.
-     *
-     * @param key The key to the item in the dictionary.
-     * @return The long value.
-     */
-    public long getLong(COSName key)
-    {
-        return getLong(key, -1L);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an long. If the
-     * dictionary value is null then the default Value will be returned.
-     *
-     * @param keyList The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The long value.
-     */
-    public long getLong(String[] keyList, long defaultValue)
-    {
-        long retval = defaultValue;
-        COSBase obj = getDictionaryObject(keyList);
-        if (obj instanceof COSNumber)
-        {
-            retval = ((COSNumber) obj).longValue();
-        }
-        return retval;
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
-     * dictionary value is null then the default Value will be returned.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The integer value.
-     */
-    public long getLong(String key, long defaultValue)
-    {
-        return getLong(COSName.getPDFName(key), defaultValue);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an integer. If the
-     * dictionary value is null then the default Value will be returned.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The integer value.
-     */
-    public long getLong(COSName key, long defaultValue)
-    {
-        long retval = defaultValue;
-        COSBase obj = getDictionaryObject(key);
-        if (obj instanceof COSNumber)
-        {
-            retval = ((COSNumber) obj).longValue();
-        }
-        return retval;
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an float. -1 is returned
-     * if there is no value.
-     *
-     * @param key The key to the item in the dictionary.
-     * @return The float value.
-     */
-    public float getFloat(String key)
-    {
-        return getFloat(COSName.getPDFName(key), -1);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be an float. -1 is returned
-     * if there is no value.
-     *
-     * @param key The key to the item in the dictionary.
-     * @return The float value.
-     */
-    public float getFloat(COSName key)
-    {
-        return getFloat(key, -1);
-    }
-
-    /**
-     * This is a convenience method that will get the dictionary object that is expected to be a float. If the
-     * dictionary value is null then the default Value will be returned.
-     *
-     * @param key The key to the item in the dictionary.
-     * @param defaultValue The value to return if the dictionary item is null.
-     * @return The float value.
-     */
-    public float getFloat(String key, float defaultValue)
-    {
-        return getFloat(COSName.getPDFName(key), defaultValue);
-    }
-
+	public function getLong($firstKey, $secondKey=null, $defaultValue=0) {
+		return getInt($firstKey,$secondKey,$defaultValue);
+	}
     /**
      * This is a convenience method that will get the dictionary object that is expected to be an float. If the
      * dictionary value is null then the default Value will be returned.
@@ -780,15 +467,14 @@ class COSDictionary extends COSBase {
      * @param defaultValue The value to return if the dictionary item is null.
      * @return The float value.
      */
-    public float getFloat(COSName key, float defaultValue)
-    {
-        float retval = defaultValue;
-        COSBase obj = getDictionaryObject(key);
-        if (obj instanceof COSNumber)
-        {
-            retval = ((COSNumber) obj).floatValue();
+    public function getFloat($key, $defaultValue) {
+ 		if (is_string($key)) $key = COSName::getPDFName($key);
+        $retval = $defaultValue;
+        $obj = $this->getDictionaryObject($key);
+        if (is_numeric($obj)) {
+            $retval = 0.00 + $obj;
         }
-        return retval;
+        return $retval;
     }
 
     /**
@@ -799,10 +485,10 @@ class COSDictionary extends COSBase {
      *
      * @return true if the number at bitPos is '1'
      */
-    public boolean getFlag(COSName field, int bitFlag)
-    {
-        int ff = getInt(field, 0);
-        return (ff & bitFlag) == bitFlag;
+    public function getFlag($field, $bitFlag) {
+		if (!is_integer($bitFlag)) return false;
+        $ff = $this->getInt($field, 0);
+        return ($ff & $bitFlag) == $bitFlag;
     }
 
     /**
@@ -810,9 +496,8 @@ class COSDictionary extends COSBase {
      *
      * @param key The key to the item to remove from the dictionary.
      */
-    public void removeItem(COSName key)
-    {
-        items.remove(key);
+    public function removeItem($key) {
+		if (isset($this->items[$key])) unset($this->items[$key]);
     }
 
     /**
@@ -822,23 +507,13 @@ class COSDictionary extends COSBase {
      *
      * @return The item that matches the key.
      */
-    public COSBase getItem(COSName key)
-    {
-        return items.get(key);
+    public function getItem($key) {
+ 		if (is_string($key)) $key = COSName::getPDFName($key);
+		if (isset($this->items[$key]))
+			return $this->items[$key];
+		else
+			return null;
     }
-
-    /**
-     * This will do a lookup into the dictionary.
-     * 
-     * @param key The key to the object.
-     *
-     * @return The item that matches the key.
-     */
-    public COSBase getItem(String key)
-    {
-        return getItem(COSName.getPDFName(key));
-    }
-
     /**
      * Returns the names of the entries in this dictionary. The returned set is in the order the entries were added to
      * the dictionary.
@@ -846,9 +521,8 @@ class COSDictionary extends COSBase {
      * @since Apache PDFBox 1.1.0
      * @return names of the entries in this dictionary
      */
-    public Set<COSName> keySet()
-    {
-        return items.keySet();
+    public function keySet() {
+        return array_keys($this->items);
     }
 
     /**
@@ -858,9 +532,9 @@ class COSDictionary extends COSBase {
      * @since Apache PDFBox 1.1.0
      * @return name-value entries in this dictionary
      */
-    public Set<Map.Entry<COSName, COSBase>> entrySet()
+    public function entrySet()
     {
-        return items.entrySet();
+        return $this->items;
     }
 
     /**
@@ -868,9 +542,9 @@ class COSDictionary extends COSBase {
      *
      * @return All the values for the dictionary.
      */
-    public Collection<COSBase> getValues()
+    public function getValues()
     {
-        return items.values();
+        return array_values($this->items);
     }
 
     /**
@@ -881,22 +555,17 @@ class COSDictionary extends COSBase {
      *
      * @throws IOException If there is an error visiting this object.
      */
-    @Override
-    public Object accept(ICOSVisitor visitor) throws IOException
-    {
-        return visitor.visitFromDictionary(this);
+    public function accept($visitor) {
+		if (!($visitor instanceof ICOSVisitor)) return null;
+        return $visitor->visitFromDictionary($this);
     }
-    
-    @Override
-    public boolean isNeedToBeUpdated() 
+    public function isNeedToBeUpdated() 
     {
-      return needToBeUpdated;
+      return $this->needToBeUpdated;
     }
-    
-    @Override
-    public void setNeedToBeUpdated(boolean flag) 
-    {
-      needToBeUpdated = flag;
+    public function setNeedToBeUpdated($flag) {
+		if (is_bool($flag))
+			$this->needToBeUpdated = $flag;
     }
 
     /**
@@ -905,61 +574,24 @@ class COSDictionary extends COSBase {
      *
      * @param dic The dic to get the keys from.
      */
-    public void addAll(COSDictionary dic)
-    {
-        for (Map.Entry<COSName, COSBase> entry : dic.entrySet())
-        {
-            /*
-             * If we're at a second trailer, we have a linearized pdf file, meaning that the first Size entry represents
-             * all of the objects so we don't need to grab the second.
-             */
-            if (!entry.getKey().getName().equals("Size")
-                    || !items.containsKey(COSName.getPDFName("Size")))
-            {
-                setItem(entry.getKey(), entry.getValue());
-            }
-        }
+    public function addAll($dic) {
+		$map = $dic->entrySet();
+		array_merge($this->items, $map);
     }
-
+	public function mergeInto($dic) {
+		$this->addAll($dic);
+	}
     /**
      * @see java.util.Map#containsKey(Object)
      *
      * @param name The key to find in the map.
      * @return true if the map contains this key.
      */
-    public boolean containsKey(COSName name)
+    public function containsKey($name)
     {
-        return this.items.containsKey(name);
+  		if (is_string($name)) $name = COSName::getPDFName($name);
+		return isset($this->items[$name]);
     }
-
-    /**
-     * @see java.util.Map#containsKey(Object)
-     *
-     * @param name The key to find in the map.
-     * @return true if the map contains this key.
-     */
-    public boolean containsKey(String name)
-    {
-        return containsKey(COSName.getPDFName(name));
-    }
-
-    /**
-     * This will add all of the dictionarys keys/values to this dictionary, but only if they don't already exist. If a
-     * key already exists in this dictionary then nothing is changed.
-     *
-     * @param dic The dic to get the keys from.
-     */
-    public void mergeInto(COSDictionary dic)
-    {
-        for (Map.Entry<COSName, COSBase> entry : dic.entrySet())
-        {
-            if (getItem(entry.getKey()) == null)
-            {
-                setItem(entry.getKey(), entry.getValue());
-            }
-        }
-    }
-
     /**
      * Nice method, gives you every object you want Arrays works properly too. Try "P/Annots/[k]/Rect" where k means the
      * index of the Annotsarray.
@@ -967,24 +599,22 @@ class COSDictionary extends COSBase {
      * @param objPath the relative path to the object.
      * @return the object
      */
-    public COSBase getObjectFromPath(String objPath)
-    {
-        COSBase retval = null;
-        String[] path = objPath.split(PATH_SEPARATOR);
-        retval = this;
-        for (String pathString : path)
-        {
-            if (retval instanceof COSArray)
-            {
-                int idx = Integer.parseInt(pathString.replaceAll("\\[", "").replaceAll("\\]", ""));
-                retval = ((COSArray) retval).getObject(idx);
+    public function getObjectFromPath($objPath) {
+		if (!is_string($objPath)) return null;
+        $retval = null;
+        $path = explode(PATH_SEPARATOR,$objPath);
+        $retval = $this;
+        foreach ($path as $pathString) {
+            if (is_array($retval)) {
+				$ps = str_replace("\\[","",str_replace("\\]","",$pathString));
+                $idx = 0+$ps;
+                $retval = $retval[$idx];
             }
-            else if (retval instanceof COSDictionary)
-            {
-                retval = ((COSDictionary) retval).getDictionaryObject(pathString);
+            elseif ($retval instanceof COSDictionary) {
+                $retval = $retval->getDictionaryObject($pathString);
             }
         }
-        return retval;
+        return $retval;
     }
 
     /**
@@ -992,36 +622,22 @@ class COSDictionary extends COSBase {
      * 
      * @return an unmodifiable view of this dictionary
      */
-    public COSDictionary asUnmodifiableDictionary()
+    public function asUnmodifiableDictionary()
     {
-        return new UnmodifiableCOSDictionary(this);
+        return new UnmodifiableCOSDictionary($this);
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
-    public String toString()
+    public function toString()
     {
-        StringBuilder retVal = new StringBuilder("COSDictionary{");
-        for (COSName key : items.keySet())
-        {
-            retVal.append("(");
-            retVal.append(key);
-            retVal.append(":");
-            if (getDictionaryObject(key) != null)
-            {
-                retVal.append(getDictionaryObject(key).toString());
-            }
-            else
-            {
-                retVal.append("<null>");
-            }
-            retVal.append(") ");
+        $retVal = "COSDictionary{";
+        foreach ($this->items as $key=>$value) {
+            $retVal.="($key:$value) ";
         }
-        retVal.append("}");
-        return retVal.toString();
+        $retVal.="}";
+        return $retVal;
     }
-
 }
 ?>

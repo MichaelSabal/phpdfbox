@@ -19,9 +19,9 @@ require_once('../cos/COSBase.php');
 require_once('../cos/COSDictionary.php');
 require_once('../cos/COSDocument.php');
 require_once('../cos/COSName.php');
-require_once('../cos/COSObject.php');
-require_once('../cos/COSObjectKey.php');
-require_once('../cos/COSArray.php');
+//require_once('../cos/COSObject.php');
+//require_once('../cos/COSObjectKey.php');
+//require_once('../cos/COSArray.php');
 /**
  * This class is used to contain parsing logic that will be used by both the
  * PDFParser and the COSStreamParser.

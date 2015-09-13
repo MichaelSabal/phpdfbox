@@ -16,10 +16,10 @@
  * limitations under the License.
  */
 require_once('BaseParser.php');
-require_once('InputStreamSource.php');
+//require_once('InputStreamSource.php');
 require_once('../cos/COSBase.php');
 require_once('../cos/COSDocument.php');
-require_once('../cos/COSObject.php');
+//require_once('../cos/COSObject.php');
 require_once('../cos/COSStream.php');
 /**
  * This will parse a PDF 1.5 object stream and extract all of the objects from the stream.
