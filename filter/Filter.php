@@ -22,7 +22,7 @@ require_once('../cos/COSDictionary.php');
  * @author <a href="mailto:ben@benlitchfield.com">Ben Litchfield</a>
  * @version $Revision: 1.7 $
  */
-public interface Filter {
+interface Filter {
     /**
      * This will decode some compressed data.
      *
@@ -44,6 +44,6 @@ public interface Filter {
      *
      * @throws IOException If there is an error compressing the stream.
      */
-    public function encode($rawData, $result, $options, $filterIndex ) 
+    public function encode($rawData, $result, $options, $filterIndex );
 }
 ?>

@@ -108,7 +108,7 @@ class COSStream extends COSDictionary {
      * @return OutputStream for un-encoded stream data.
      * @throws IOException If the output stream could not be created.
      */
-    public OutputStream createOutputStream($filters=null) {
+    public function createOutputStream($filters=null) {
         $this->checkClosed();
         if ($this->isWriting) {
             throw new Exception("Cannot have more than one open stream writer.");
@@ -140,7 +140,6 @@ class COSStream extends COSDictionary {
         $this->isWriting = true;
         return new FilterOutputStream($out);
     }
-    
     /**
      * Returns the list of filters.
      */
@@ -148,31 +147,30 @@ class COSStream extends COSDictionary {
         $filterList = array();
         $filters = $this->getFilters();
         if ($filters instanceof COSName) {
-            $filterList[] = (FilterFactory::INSTANCE->getFilter($filters));
+			$ff = FilterFactory::INSTANCE;
+            $filterList[] = ($ff->getFilter($filters));
         } elseif (is_array($filters)) {
             $filterArray = $filters;
             for ($i = 0; $i < count($filterArray); $i++) {
                 $filterName = $filterArray[$i];
-                $filterList[] = (FilterFactory::INSTANCE->getFilter($filterName));
+				$ff = FilterFactory::INSTANCE;
+                $filterList[] = ($ff->getFilter($filterName));
             }
         }
         return $filterList;
     }
-    
     /**
      * Returns the length of the encoded stream.
      *
      * @return length in bytes
      */
-    public long getLength()
-    {
-        if (isWriting)
-        {
-            throw new IllegalStateException("There is an open OutputStream associated with " +
-                                            "this COSStream. It must be closed before querying" +
+    public function getLength() {
+        if ($this->isWriting) {
+            throw new Exception("There is an open OutputStream associated with ".
+                                            "this COSStream. It must be closed before querying".
                                             "length of this COSStream.");
         }
-        return getInt(COSName.LENGTH, 0);
+        return $this->getInt(COSName::LENGTH, 0);
     }
 
     /**
@@ -184,70 +182,35 @@ class COSStream extends COSDictionary {
      *
      * @return the COSBase object representing the filters
      */
-    public COSBase getFilters()
-    {
-        return getDictionaryObject(COSName.FILTER);
+    public function getFilters() {
+        return $this->getDictionaryObject(COSName::FILTER);
     }
-    
-    /**
-     * Sets the filters to be applied when encoding or decoding the stream.
-     *
-     * @param filters The filters to set on this stream.
-     * @throws IOException If there is an error clearing the old filters.
-     * @deprecated Use {@link #createOutputStream(COSBase)} instead.
-     */
-    @Deprecated
-    public void setFilters(COSBase filters) throws IOException
-    {
-        setItem(COSName.FILTER, filters);
-    }
-
-    /**
-     * Returns the contents of the stream as a text string.
-     * 
-     * @deprecated Use {@link #toTextString()} instead.
-     */
-    @Deprecated
-    public String getString()
-    {
-        return toTextString();
-    }
-    
     /**
      * Returns the contents of the stream as a PDF "text string".
      */
-    public String toTextString()
-    {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        InputStream input = null;
+    public function toTextString() {
+        $out = new ByteArrayOutputStream();
+        $input = null;
         try
         {
-            input = createInputStream();
-            IOUtils.copy(input, out);
+            $input = $this->createInputStream();
+            IOUtils::copy($input, $out);
         }
-        catch (IOException e)
+        catch (Exception $e)
         {
             return "";
         }
-        finally
-        {
-            IOUtils.closeQuietly(input);
-        }
-        COSString string = new COSString(out.toByteArray());
-        return string.getString();
+        IOUtils::closeQuietly($input);
+        $string = $out->toByteArray();
+        return $string;
     }
-    
-    @Override
-    public Object accept(ICOSVisitor visitor) throws IOException
-    {
-        return visitor.visitFromStream(this);
+    public function accept($visitor) {
+		if (!($visitor instanceof ICOSVisitor)) return null;
+        return $visitor->visitFromStream($this);
     }
-    
-    @Override
-    public void close() throws IOException
-    {
+    public function close() {
         // marks the scratch file pages as free
-        randomAccess.close();
+        $this->randomAccess->close();
     }
 }
 ?>
