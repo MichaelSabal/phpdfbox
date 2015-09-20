@@ -147,13 +147,13 @@ class COSStream extends COSDictionary {
         $filterList = array();
         $filters = $this->getFilters();
         if ($filters instanceof COSName) {
-			$ff = FilterFactory::INSTANCE;
+			$ff = FilterFactory::Instance();
             $filterList[] = ($ff->getFilter($filters));
         } elseif (is_array($filters)) {
             $filterArray = $filters;
             for ($i = 0; $i < count($filterArray); $i++) {
                 $filterName = $filterArray[$i];
-				$ff = FilterFactory::INSTANCE;
+				$ff = FilterFactory::Instance();
                 $filterList[] = ($ff->getFilter($filterName));
             }
         }
