@@ -156,33 +156,26 @@ class RandomAccessBuffer {
     /**
      * {@inheritDoc}
      */
-    public int read() throws IOException
-    {
-        checkClosed();
-        if (pointer >= this.size)
-        {
+    public function read() {
+        $this->checkClosed();
+        if ($this->pointer >= $this->size) {
             return -1;
         }
-        if (currentBufferPointer >= chunkSize)
-        {
-            if (bufferListIndex >= bufferListMaxIndex)
-            {
+        if ($this->currentBufferPointer >= $this->chunkSize) {
+            if ($this->bufferListIndex >= $this->bufferListMaxIndex) {
                 return -1;
-            }
-            else
-            {
-                currentBuffer = bufferList.get(++bufferListIndex);
-                currentBufferPointer = 0;
+            } else {
+                $this->currentBuffer = $this->bufferList->get(++$this->bufferListIndex);
+                $this->currentBufferPointer = 0;
             }
         }
-        pointer++;
-        return currentBuffer[currentBufferPointer++] & 0xff;
+        $this->pointer++;
+        return $this->currentBuffer[$this->currentBufferPointer++] & 0xff;
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
     public int read(byte[] b, int offset, int length) throws IOException
     {
         checkClosed();
@@ -202,79 +195,65 @@ class RandomAccessBuffer {
         return bytesRead;
     }
 
-    private int readRemainingBytes(byte[] b, int offset, int length) throws IOException
-    {
-        if (pointer >= size)
-        {
+    private function readRemainingBytes(&$b, $offset, $length) {
+        if ($this->pointer >= $this->size) {
             return 0;
         }
-        int maxLength = (int) Math.min(length, size-pointer);
-        int remainingBytes = chunkSize - currentBufferPointer;
+        $maxLength = floor(min($length, $this->size-$this->pointer));
+        $remainingBytes = $this->chunkSize - $this->currentBufferPointer;
         // no more bytes left
-        if (remainingBytes == 0)
-        {
+        if ($remainingBytes == 0) {
             return 0;
         }
-        if (maxLength >= remainingBytes)
-        {
+        if ($maxLength >= $remainingBytes) {
             // copy the remaining bytes from the current buffer
-            System.arraycopy(currentBuffer, currentBufferPointer, b, offset, remainingBytes);
+			$b = $this->currentBuffer[$this->currentBufferPointer+$offset..$this->currentBufferPointer+$offset+$remainingBytes-1];
             // end of file reached
-            currentBufferPointer += remainingBytes;
-            pointer += remainingBytes;
-            return remainingBytes;
-        }
-        else
-        {
+            $this->currentBufferPointer += $remainingBytes;
+            $this->pointer += $remainingBytes;
+            return $remainingBytes;
+        } else {
             // copy the remaining bytes from the whole buffer
-            System.arraycopy(currentBuffer, currentBufferPointer, b, offset, maxLength);
+			$b = $this->currentBuffer[$this->currentBufferPointer+$offset..$this->currentBufferPointer+$offset+$maxLength-1];
             // end of file reached
-            currentBufferPointer += maxLength;
-            pointer += maxLength;
-            return maxLength;
+            $this->currentBufferPointer += $maxLength;
+            $this->pointer += $maxLength;
+            return $maxLength;
         }
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
-    public long length() throws IOException
-    {
-        checkClosed();
-        return size;
+    public function length() {
+        this->$checkClosed();
+        return $this->size;
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
-    public void write(int b) throws IOException
-    {
-        checkClosed();
+    public function write($b) {
+        $this->checkClosed();
         // end of buffer reached?
-        if (currentBufferPointer >= chunkSize)
-        {
-            if (pointer + chunkSize >= Integer.MAX_VALUE)
+        if ($this->currentBufferPointer >= $this->chunkSize) {
+            if ($this->pointer + $this->chunkSize >= PHP_INT_MAX)
             {
-                throw new IOException("RandomAccessBuffer overflow");
+                throw new Exception("RandomAccessBuffer overflow");
             }
-            expandBuffer();
+            $this->expandBuffer();
         }
-        currentBuffer[currentBufferPointer++] = (byte)b;
-        pointer++;
-        if (pointer > this.size)
-        {
-            this.size = pointer;
+        $this->currentBuffer[$this->currentBufferPointer++] = chr($b);
+        $this->pointer++;
+        if ($this->pointer > $this->size) {
+            $this->size = $this->pointer;
         }
         // end of buffer reached now?
-        if (currentBufferPointer >= chunkSize)
-        {
-            if (pointer + chunkSize >= Integer.MAX_VALUE)
-            {
-                throw new IOException("RandomAccessBuffer overflow");
+        if ($this->currentBufferPointer >= $this->chunkSize) {
+            if ($this->pointer + $this->chunkSize >= PHP_INT_MAX) {
+                throw new Exception("RandomAccessBuffer overflow");
             }
-            expandBuffer();
+            $this->expandBuffer();
         }
     }
 
