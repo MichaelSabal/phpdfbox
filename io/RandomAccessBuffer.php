@@ -24,7 +24,7 @@ class RandomAccessBuffer {
     // default chunk size is 1kb
     private static $DEFAULT_CHUNK_SIZE = 1024;
     // use the default chunk size
-    private $chunkSize = $DEFAULT_CHUNK_SIZE;
+    private $chunkSize;
     // list containing all chunks
     private $bufferList = null;
     // current chunk
@@ -44,6 +44,7 @@ class RandomAccessBuffer {
      * Default constructor.
      */
     public function __construct($input = null) {
+		$this->chunkSize = RandomAccessBuffer::DEFAULT_CHUNK_SIZE;
 		if (is_null($input) || is_resource($input)) {
 			// starting with one chunk
 			$this->bufferList = array();
@@ -76,7 +77,7 @@ class RandomAccessBuffer {
 			$this->seek(0);
 		}
     }
-    public function clone() {
+    public function duplicate() {
         $copy = new RandomAccessBuffer();
 
         $copy->bufferList = $this->bufferList;
@@ -152,47 +153,26 @@ class RandomAccessBuffer {
        $this->checkClosed();
        return $this->pointer;
     }
-    
     /**
      * {@inheritDoc}
      */
-    public function read() {
+    public function read(&$b=null, $offset=0, $length=-1) {
+		if (is_null($b)) $b = array_pad(array(),1,0);
+		if ($length==-1) $length = count($b);
         $this->checkClosed();
         if ($this->pointer >= $this->size) {
-            return -1;
+			if ($length==1) return -1;
+            else return 0;
         }
-        if ($this->currentBufferPointer >= $this->chunkSize) {
-            if ($this->bufferListIndex >= $this->bufferListMaxIndex) {
-                return -1;
-            } else {
-                $this->currentBuffer = $this->bufferList->get(++$this->bufferListIndex);
-                $this->currentBufferPointer = 0;
-            }
-        }
-        $this->pointer++;
-        return $this->currentBuffer[$this->currentBufferPointer++] & 0xff;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public int read(byte[] b, int offset, int length) throws IOException
-    {
-        checkClosed();
-        if (pointer >= size)
-        {
-            return 0;
-        }
-        int bytesRead = readRemainingBytes(b, offset, length);
-        while (bytesRead < length && available() > 0)
-        {
-            bytesRead += readRemainingBytes(b, offset + bytesRead, length - bytesRead);
-            if (currentBufferPointer == chunkSize)
+        $bytesRead = $this->readRemainingBytes($b, $offset, $length);
+        while ($bytesRead < $length && $this->available() > 0) {
+            $bytesRead += $this->readRemainingBytes($b, $offset + $bytesRead, $length - $bytesRead);
+            if ($this->currentBufferPointer == $this->chunkSize)
             {
-                nextBuffer();
+                $this->nextBuffer();
             }
         }
-        return bytesRead;
+        return $bytesRead;
     }
 
     private function readRemainingBytes(&$b, $offset, $length) {
@@ -207,14 +187,14 @@ class RandomAccessBuffer {
         }
         if ($maxLength >= $remainingBytes) {
             // copy the remaining bytes from the current buffer
-			$b = $this->currentBuffer[$this->currentBufferPointer+$offset..$this->currentBufferPointer+$offset+$remainingBytes-1];
+			$b = array_slice($this->currentBuffer,$this->currentBufferPointer+$offset,$remainingBytes);
             // end of file reached
             $this->currentBufferPointer += $remainingBytes;
             $this->pointer += $remainingBytes;
             return $remainingBytes;
         } else {
             // copy the remaining bytes from the whole buffer
-			$b = $this->currentBuffer[$this->currentBufferPointer+$offset..$this->currentBufferPointer+$offset+$maxLength-1];
+			$b = array_slice($this->currentBuffer,$this->currentBufferPointer+$offset,$maxLength);
             // end of file reached
             $this->currentBufferPointer += $maxLength;
             $this->pointer += $maxLength;
@@ -226,220 +206,152 @@ class RandomAccessBuffer {
      * {@inheritDoc}
      */
     public function length() {
-        this->$checkClosed();
+        $this->checkClosed();
         return $this->size;
     }
-
     /**
      * {@inheritDoc}
      */
-    public function write($b) {
+    public function write($b=null, $offset=0, $length=-1) {
+		if (is_integer($b)) $b = array(chr($b));
+		if (!is_array($b)) throw new Exception("Bad write to RandomAccessBuffer.");
+		if ($length==-1) $length = count($b);
         $this->checkClosed();
-        // end of buffer reached?
-        if ($this->currentBufferPointer >= $this->chunkSize) {
-            if ($this->pointer + $this->chunkSize >= PHP_INT_MAX)
-            {
+        $newSize = $this->pointer + $length;
+        $remainingBytes = $this->chunkSize - $this->currentBufferPointer;
+        if ($length >= $remainingBytes) {
+            if ($newSize > PHP_INT_MAX) {
                 throw new Exception("RandomAccessBuffer overflow");
-            }
-            $this->expandBuffer();
-        }
-        $this->currentBuffer[$this->currentBufferPointer++] = chr($b);
-        $this->pointer++;
-        if ($this->pointer > $this->size) {
-            $this->size = $this->pointer;
-        }
-        // end of buffer reached now?
-        if ($this->currentBufferPointer >= $this->chunkSize) {
-            if ($this->pointer + $this->chunkSize >= PHP_INT_MAX) {
-                throw new Exception("RandomAccessBuffer overflow");
-            }
-            $this->expandBuffer();
-        }
-    }
-
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void write(byte[] b) throws IOException
-    {
-        write(b, 0, b.length);
-    }
-    
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void write(byte[] b, int offset, int length) throws IOException
-    {
-        checkClosed();
-        long newSize = pointer + length;
-        int remainingBytes = chunkSize - currentBufferPointer;
-        if (length >= remainingBytes)
-        {
-            if (newSize > Integer.MAX_VALUE)
-            {
-                throw new IOException("RandomAccessBuffer overflow");
             }
             // copy the first bytes to the current buffer
-            System.arraycopy(b, offset, currentBuffer, currentBufferPointer, remainingBytes);
-            int newOffset = offset + remainingBytes;
-            long remainingBytes2Write = length - remainingBytes;
+			for ($i=$this->currentBufferPointer;$i<$remainingBytes;$i++) {
+				$this->currentBuffer[$i] = $b[$offset+($i-$this->currentBufferPointer)];
+			}
+            $newOffset = $offset + $remainingBytes;
+            $remainingBytes2Write = $length - $remainingBytes;
             // determine how many buffers are needed for the remaining bytes
-            int numberOfNewArrays = (int)remainingBytes2Write / chunkSize;
-            for (int i=0;i<numberOfNewArrays;i++)
-            {
-                expandBuffer();
-                System.arraycopy(b, newOffset, currentBuffer, currentBufferPointer, chunkSize);
-                newOffset += chunkSize;
+            $numberOfNewArrays = floor($remainingBytes2Write / $this->chunkSize);
+            for ($na=0;$na<$numberOfNewArrays;$na++) {
+                $this->expandBuffer();
+				for ($i=$this->currentBufferPointer;$i<$this->chunkSize;$i++) {
+					$this->currentBuffer[$i] = $b[$newOffset+($i-$this->currentBufferPointer)];
+				}
+                $newOffset += $this->chunkSize;
             }
             // are there still some bytes to be written?
-            remainingBytes2Write -= numberOfNewArrays * (long) chunkSize;
-            if (remainingBytes2Write >= 0)
-            {
-                expandBuffer();
-                if (remainingBytes2Write > 0)
-                {
-                    System.arraycopy(b, newOffset, currentBuffer, currentBufferPointer, (int)remainingBytes2Write);
+            $remainingBytes2Write -= $numberOfNewArrays * $this->chunkSize;
+            if ($remainingBytes2Write >= 0) {
+                $this->expandBuffer();
+                if ($remainingBytes2Write > 0) {
+					for ($i=$this->currentBufferPointer;$i<$remainingBytes2Write;$i++) {
+						$this->currentBuffer[$i] = $b[$newOffset+($i-$this->currentBufferPointer)];
+					}
                 }
-                currentBufferPointer = (int)remainingBytes2Write;
+                $this->currentBufferPointer = $remainingBytes2Write;
             }
+        } else {
+			for ($i=$this->currentBufferPointer;$i<$length;$i++) {
+				$this->currentBuffer[$i] = $b[$offset+($i-$this->currentBufferPointer)];
+			}
+            $this->currentBufferPointer += $length;
         }
-        else
-        {
-            System.arraycopy(b, offset, currentBuffer, currentBufferPointer, length);
-            currentBufferPointer += length;
-        }
-        pointer += length;
-        if (pointer > this.size)
-        {
-            this.size = pointer;
+        $this->pointer += $length;
+        if ($this->pointer > $this->size) {
+            $this->size = $this->pointer;
         }
     }
 
     /**
      * create a new buffer chunk and adjust all pointers and indices.
      */
-    private void expandBuffer() throws IOException
-    {
-        if (bufferListMaxIndex > bufferListIndex)
-        {
+    private function expandBuffer() {
+        if ($this->bufferListMaxIndex > $this->bufferListIndex) {
             // there is already an existing chunk
-            nextBuffer();
-        }
-        else
-        {
+            $this->nextBuffer();
+        } else {
             // create a new chunk and add it to the buffer
-            currentBuffer = new byte[chunkSize];
-            bufferList.add(currentBuffer);
-            currentBufferPointer = 0;
-            bufferListMaxIndex++;
-            bufferListIndex++;
+            $this->currentBuffer = array_pad(array(),$this->chunkSize,0);
+            $this->bufferList[] = $this->currentBuffer;
+            $this->currentBufferPointer = 0;
+            $this->bufferListMaxIndex++;
+            $this->bufferListIndex++;
         }
     }
 
     /**
      * switch to the next buffer chunk and reset the buffer pointer.
      */
-    private void nextBuffer() throws IOException
-    {
-        if (bufferListIndex == bufferListMaxIndex)
-        {
-            throw new IOException("No more chunks available, end of buffer reached");
+    private function nextBuffer() {
+        if ($this->bufferListIndex == $this->bufferListMaxIndex) {
+            throw new Exception("No more chunks available, end of buffer reached");
         }
-        currentBufferPointer = 0;
-        currentBuffer = bufferList.get(++bufferListIndex);
+        $this->currentBufferPointer = 0;
+        $this->currentBuffer = $this->bufferList[++$bufferListIndex];
     }
     
     /**
      * Ensure that the RandomAccessBuffer is not closed
      * @throws IOException
      */
-    private void checkClosed() throws IOException
-    {
-        if (currentBuffer==null)
+    private function checkClosed() {
+        if (is_null($this->currentBuffer))
         {
             // consider that the rab is closed if there is no current buffer
-            throw new IOException("RandomAccessBuffer already closed");
+            throw new Exception("RandomAccessBuffer already closed");
         }
-        
     }
-
     /**
      * {@inheritDoc}
      */
-    @Override
-    public boolean isClosed()
+    public function isClosed()
     {
-        return currentBuffer == null;
+        return is_null($this->currentBuffer);
     }
-
     /**
      * {@inheritDoc}
      */
-    @Override
-    public boolean isEOF() throws IOException
-    {
-        checkClosed();
-        return pointer >= size;
+    public function isEOF() {
+        $this->checkClosed();
+        return $this->pointer >= $this->size;
     }
-
     /**
      * {@inheritDoc}
      */
-    @Override
-    public int available() throws IOException
-    {
-        return (int) Math.min(length() - getPosition(), Integer.MAX_VALUE);
+    public function available() {
+        return min($this->length() - $this->getPosition(), PHP_INT_MAX);
     }
-
     /**
      * {@inheritDoc}
      */
-    @Override
-    public int peek() throws IOException
-    {
-        int result = read();
-        if (result != -1)
+    public function peek() {
+        $result = $this->read();
+        if ($result != -1)
         {
-            rewind(1);
+            $this->rewind(1);
         }
-        return result;
+        return $result;
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
-    public void rewind(int bytes) throws IOException
-    {
-        checkClosed();
-        seek(getPosition() - bytes);
+    public function rewind($bytes) {
+		if (is_integer($bytes)) {
+			$this->checkClosed();
+			$this->seek($this->getPosition() - $bytes);
+		}
     }
 
     /**
      * {@inheritDoc}
      */
-    @Override
-    public byte[] readFully(int length) throws IOException
-    {
-        byte[] b = new byte[length];
-        int bytesRead = read(b);
-        while (bytesRead < length)
-        {
-            bytesRead += read(b, bytesRead, length - bytesRead);
+    public function readFully($length) {
+        $b = array_pad(array(),$length,0);
+        $bytesRead = $this->read($b);
+        while ($bytesRead < $length) {
+            $bytesRead += $this->read($b, $bytesRead, $length - $bytesRead);
         }
-        return b;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int read(byte[] b) throws IOException
-    {
-        return read(b, 0, b.length);
+        return $b;
     }
 }
 ?>
