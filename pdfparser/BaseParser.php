@@ -15,10 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+$cwd = getcwd();
+chdir(__DIR__);
 require_once('../cos/COSBase.php');
 require_once('../cos/COSDictionary.php');
 require_once('../cos/COSDocument.php');
 require_once('../cos/COSName.php');
+chdir($cwd);
 //require_once('../cos/COSObject.php');
 //require_once('../cos/COSObjectKey.php');
 //require_once('../cos/COSArray.php');
