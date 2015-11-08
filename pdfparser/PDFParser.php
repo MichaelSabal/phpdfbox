@@ -15,14 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+$cwd = getcwd();
+chdir(__DIR__);
 require_once('../cos/COSBase.php');
+require_once('COSParser.php');
 require_once('../cos/COSDictionary.php');
 require_once('../cos/COSDocument.php');
 require_once('../cos/COSName.php');
 require_once('../io/IOUtils.php');
-require_once('../io/RandomAccessRead.php');
+//require_once('../io/RandomAccessRead.php');
 require_once('../io/ScratchFile.php');
-require_once('../pdmodel/PDDocument.php');
+//require_once('../pdmodel/PDDocument.php');
+chdir($cwd);
 /*
 import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
 import org.apache.pdfbox.pdmodel.encryption.DecryptionMaterial;
@@ -76,9 +80,8 @@ class PDFParser extends COSParser {
      *
      * @throws IOException If there is an error getting the document.
      */
-    public PDDocument getPDDocument() throws IOException
-    {
-        return new PDDocument( getDocument(), source, accessPermission );
+    public function getPDDocument() {
+        return new PDDocument( $this->getDocument(), $this->source, $this->accessPermission );
     }
 
     /**
@@ -88,31 +91,26 @@ class PDFParser extends COSParser {
      * 
      * @throws IOException If something went wrong.
      */
-    protected void initialParse() throws IOException
-    {
-        COSDictionary trailer = null;
+    protected function initialParse() {
+        $trailer = null;
         // parse startxref
-        long startXRefOffset = getStartxrefOffset();
-        if (startXRefOffset > -1)
-        {
-            trailer = parseXref(startXRefOffset);
-        }
-        else if (isLenient())
-        {
-            trailer = rebuildTrailer();
+        $startXRefOffset = $this->getStartxrefOffset();
+        if ($startXRefOffset > -1) {
+            $trailer = $this->parseXref($startXRefOffset);
+        } else if ($this->isLenient()) {
+            $trailer = $this->rebuildTrailer();
         }
         // prepare decryption if necessary
-        prepareDecryption();
+        $this->prepareDecryption();
     
-        parseTrailerValuesDynamically(trailer);
+        $this->parseTrailerValuesDynamically($trailer);
     
-        COSObject catalogObj = document.getCatalog();
-        if (catalogObj != null && catalogObj.getObject() instanceof COSDictionary)
-        {
-            parseDictObjects((COSDictionary) catalogObj.getObject(), (COSName[]) null);
-            document.setDecrypted();
+        $catalogObj = $this->document->getCatalog();
+        if (!is_null($catalogObj) && $this->catalogObj->getObject() instanceof COSDictionary) {
+            $this->parseDictObjects($this->catalogObj->getObject(), null);
+            $this->document->setDecrypted();
         }
-        initialParseDone = true;
+        $this->initialParseDone = true;
     }
 
     /**
@@ -122,34 +120,31 @@ class PDFParser extends COSParser {
      * @throws IOException If there is an error reading from the stream or corrupt data
      * is found.
      */
-    public void parse() throws IOException
-    {
+    public function parse() {
          // set to false if all is processed
-         boolean exceptionOccurred = true; 
-         try
-         {
+         $exceptionOccurred = true; 
+         try {
             // PDFBOX-1922 read the version header and rewind
-            if (!parsePDFHeader() && !parseFDFHeader())
+            if (!$this->parsePDFHeader() && !$this->parseFDFHeader())
             {
-                throw new IOException( "Error: Header doesn't contain versioninfo" );
+                throw new Exception( "Error: Header doesn't contain versioninfo" );
             }
     
-            if (!initialParseDone)
+            if (!$this->initialParseDone)
             {
-                initialParse();
+                $this->initialParse();
             }
-            exceptionOccurred = false;
-        }
-        finally
-        {
-            IOUtils.closeQuietly(keyStoreInputStream);
-    
-            if (exceptionOccurred && document != null)
-            {
-                IOUtils.closeQuietly(document);
-                document = null;
-            }
-        }
+            $exceptionOccurred = false;
+        } catch(Exception $e) {
+			
+		}
+		IOUtils::closeQuietly($this->keyStoreInputStream);
+
+		if ($exceptionOccurred && !is_null($this->document))
+		{
+			IOUtils::closeQuietly($this->document);
+			$this->document = null;
+		}      
     }
 
     /**
@@ -157,46 +152,33 @@ class PDFParser extends COSParser {
      * 
      * @throws IOException if something went wrong
      */
-    private void prepareDecryption() throws IOException
-    {
-        COSBase trailerEncryptItem = document.getTrailer().getItem(COSName.ENCRYPT);
-        if (trailerEncryptItem != null && !(trailerEncryptItem instanceof COSNull))
-        {
-            if (trailerEncryptItem instanceof COSObject)
-            {
-                COSObject trailerEncryptObj = (COSObject) trailerEncryptItem;
-                parseDictionaryRecursive(trailerEncryptObj);
+    private function prepareDecryption() {
+        $trailerEncryptItem = $this->document->getTrailer()->getItem(COSName::ENCRYPT);
+        if (!is_null($trailerEncryptItem)) {
+            if ($trailerEncryptItem instanceof COSObject) {
+                $trailerEncryptObj = $trailerEncryptItem;
+                $this->parseDictionaryRecursive($trailerEncryptObj);
             }
-            try
-            {
-                PDEncryption encryption = new PDEncryption(document.getEncryptionDictionary());
+            try {
+                $encryption = new PDEncryption($this->document->getEncryptionDictionary());
     
-                DecryptionMaterial decryptionMaterial;
-                if (keyStoreInputStream != null)
+                if (!is_null($this->keyStoreInputStream))
                 {
-                    KeyStore ks = KeyStore.getInstance("PKCS12");
-                    ks.load(keyStoreInputStream, password.toCharArray());
-    
-                    decryptionMaterial = new PublicKeyDecryptionMaterial(ks, keyAlias, password);
-                }
-                else
-                {
-                    decryptionMaterial = new StandardDecryptionMaterial(password);
+                    $ks = KeyStore::getInstance("PKCS12");
+                    $ks->load($this->keyStoreInputStream, $this->password);
+                    $decryptionMaterial = new PublicKeyDecryptionMaterial($ks, $this->keyAlias, $this->password);
+                } else {
+                    $decryptionMaterial = new StandardDecryptionMaterial($this->password);
                 }
     
-                securityHandler = encryption.getSecurityHandler();
-                securityHandler.prepareForDecryption(encryption, document.getDocumentID(),
-                        decryptionMaterial);
-                accessPermission = securityHandler.getCurrentAccessPermission();
+                $securityHandler = $encryption->getSecurityHandler();
+                $securityHandler->prepareForDecryption($encryption, $this->document->getDocumentID(),
+                        $decryptionMaterial);
+                $accessPermission = $securityHandler->getCurrentAccessPermission();
             }
-            catch (IOException e)
+            catch (Exception $e)
             {
-                throw e;
-            }
-            catch (Exception e)
-            {
-                throw new IOException("Error (" + e.getClass().getSimpleName()
-                        + ") while creating security handler for decryption", e);
+                throw $e;
             }
         }
     }
@@ -208,18 +190,17 @@ class PDFParser extends COSParser {
      * @throws IOException if something went wrong
      * 
      */
-    private void parseDictionaryRecursive(COSObject dictionaryObject) throws IOException
-    {
-        parseObjectDynamically(dictionaryObject, true);
-        COSDictionary dictionary = (COSDictionary)dictionaryObject.getObject();
-        for(COSBase value : dictionary.getValues())
+    private function parseDictionaryRecursive($dictionaryObject) {
+        $this->parseObjectDynamically($dictionaryObject, true);
+        $dictionary = $dictionaryObject->getObject();
+        foreach($dictionary->getValues() as $value)
         {
-            if (value instanceof COSObject)
+            if ($value instanceof COSObject)
             {
-                COSObject object = (COSObject)value;
-                if (object.getObject() == null)
+                $object = $value;
+                if (is_null($object->getObject()))
                 {
-                    parseDictionaryRecursive(object);
+                    $this->parseDictionaryRecursive($object);
                 }
             }
         }
